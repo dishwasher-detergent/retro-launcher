@@ -8,11 +8,13 @@
  * When running `npm run build` or `npm run build:main`, this file is compiled to
  * `./src/main.js` using webpack. This gives us some performance wins.
  */
-import path from 'path';
-import { app, BrowserWindow, shell, ipcMain } from 'electron';
-import { autoUpdater } from 'electron-updater';
+import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import log from 'electron-log';
-import MenuBuilder from './menu';
+import { autoUpdater } from 'electron-updater';
+import path from 'path';
+// import MenuBuilder from './menu'; // Removed - no longer using menu
+import { NFCService } from './nfc-service';
+import { SystemTrayService } from './system-tray';
 import { resolveHtmlPath } from './util';
 
 class AppUpdater {
@@ -24,11 +26,30 @@ class AppUpdater {
 }
 
 let mainWindow: BrowserWindow | null = null;
+let nfcService: NFCService | null = null;
+let systemTray: SystemTrayService | null = null;
+let isQuiting = false;
 
 ipcMain.on('ipc-example', async (event, arg) => {
   const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
   console.log(msgTemplate(arg));
   event.reply('ipc-example', msgTemplate('pong'));
+});
+
+ipcMain.handle('get-nfc-status', () => {
+  return (
+    nfcService?.getConnectionStatus() || {
+      connected: false,
+      message: 'NFC service not initialized',
+    }
+  );
+});
+
+ipcMain.handle('show-main-window', () => {
+  if (mainWindow) {
+    mainWindow.show();
+    mainWindow.focus();
+  }
 });
 
 if (process.env.NODE_ENV === 'production') {
@@ -71,14 +92,17 @@ const createWindow = async () => {
 
   mainWindow = new BrowserWindow({
     show: false,
-    width: 1024,
-    height: 728,
+    width: 500,
+    height: 600,
     icon: getAssetPath('icon.png'),
     webPreferences: {
       preload: app.isPackaged
         ? path.join(__dirname, 'preload.js')
         : path.join(__dirname, '../../.erb/dll/preload.js'),
     },
+    skipTaskbar: false,
+    minimizable: true,
+    autoHideMenuBar: true,
   });
 
   mainWindow.loadURL(resolveHtmlPath('index.html'));
@@ -87,6 +111,7 @@ const createWindow = async () => {
     if (!mainWindow) {
       throw new Error('"mainWindow" is not defined');
     }
+
     if (process.env.START_MINIMIZED) {
       mainWindow.minimize();
     } else {
@@ -94,21 +119,49 @@ const createWindow = async () => {
     }
   });
 
+  mainWindow.on('close', (event) => {
+    if (!isQuiting) {
+      event.preventDefault();
+      mainWindow?.hide();
+
+      if (systemTray) {
+        systemTray.showFirstHideNotification();
+      }
+    }
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
 
-  const menuBuilder = new MenuBuilder(mainWindow);
-  menuBuilder.buildMenu();
+  // Removed menu builder to hide File, View, Help menu
+  // const menuBuilder = new MenuBuilder(mainWindow);
+  // menuBuilder.buildMenu();
 
-  // Open urls in the user's browser
+  // Initialize system tray
+  systemTray = new SystemTrayService(mainWindow);
+  nfcService = new NFCService();
+
+  nfcService.onConnectionStatusChanged((connected, message) => {
+    systemTray?.updateNFCStatus(connected);
+    mainWindow?.webContents.send('nfc-status-changed', { connected, message });
+  });
+
+  nfcService.onTagDetected((tagData) => {
+    systemTray?.updateCurrentTag(tagData);
+    mainWindow?.webContents.send('nfc-tag-detected', tagData);
+  });
+
+  nfcService.onTagRemoved(() => {
+    systemTray?.updateCurrentTag(null);
+    mainWindow?.webContents.send('nfc-tag-removed');
+  });
+
   mainWindow.webContents.setWindowOpenHandler((edata) => {
     shell.openExternal(edata.url);
     return { action: 'deny' };
   });
 
-  // Remove this if your app does not use auto updates
-  // eslint-disable-next-line
   new AppUpdater();
 };
 
@@ -117,11 +170,14 @@ const createWindow = async () => {
  */
 
 app.on('window-all-closed', () => {
-  // Respect the OSX convention of having the application in memory even
-  // after all windows have been closed
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  // Don't quit the app when all windows are closed - keep running in system tray
+  // This allows the app to continue running like Discord
+});
+
+app.on('before-quit', () => {
+  isQuiting = true;
+  nfcService?.dispose();
+  systemTray?.dispose();
 });
 
 app
@@ -129,8 +185,6 @@ app
   .then(() => {
     createWindow();
     app.on('activate', () => {
-      // On macOS it's common to re-create a window in the app when the
-      // dock icon is clicked and there are no other windows open.
       if (mainWindow === null) createWindow();
     });
   })
