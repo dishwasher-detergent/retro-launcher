@@ -1,6 +1,8 @@
-import { LucideRefreshCw } from "lucide-react";
+import { LucideRefreshCw, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "./components/ui/button";
+import { Preview } from "./components/ui/preview";
+import { Writer } from "./components/writer";
 import { NFCCardData, NFCStatus } from "./types/electron";
 
 function App() {
@@ -8,6 +10,7 @@ function App() {
   const [nfcStatus, setNFCStatus] = useState<NFCStatus>({ connected: false });
   const [isLoading, setIsLoading] = useState(true);
   const [notifications, setNotifications] = useState<string[]>([]);
+  const [showWriter, setShowWriter] = useState(false);
 
   useEffect(() => {
     initializeData();
@@ -97,51 +100,52 @@ function App() {
 
   return (
     <div className="p-4 bg-background text-foreground">
-      <div className="flex flex-row gap-1 items-center mb-2">
-        <div
-          className={`h-2 w-2 rounded-full animate-pulse ${
-            nfcStatus.connected ? "bg-emerald-600" : "bg-destructive"
-          }`}
-        />
-        <p className="font-semibold text-sm">
-          {nfcStatus.connected ? "Connected" : "Disconnected"}
-        </p>
-        {!nfcStatus.connected && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-6"
-            onClick={handleReconnect}
-          >
-            <LucideRefreshCw className="size-3" />
-          </Button>
-        )}
+      <div className="flex flex-row gap-1 items-center justify-between mb-2">
+        <div className="flex flex-row gap-1 items-center">
+          <div
+            className={`h-2 w-2 rounded-full animate-pulse ${
+              nfcStatus.connected ? "bg-emerald-600" : "bg-destructive"
+            }`}
+          />
+          <p className="font-semibold text-sm">
+            {nfcStatus.connected ? "Connected" : "Disconnected"}
+          </p>
+          {!nfcStatus.connected && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-6"
+              onClick={handleReconnect}
+            >
+              <LucideRefreshCw className="size-3" />
+            </Button>
+          )}
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowWriter(!showWriter)}
+          className="flex items-center gap-1"
+        >
+          <Plus className="size-3" />
+          Create Cartridge
+        </Button>
       </div>
+
+      {showWriter && (
+        <div className="mb-6 border rounded-lg p-4 bg-muted">
+          <Writer />
+        </div>
+      )}
+
       <h2 className="text-xl font-bold mb-2">Current Game</h2>
       <div className="bg-muted rounded-lg p-2 mb-6">
         {currentCard ? (
-          <div className="flex items-start gap-4">
-            {currentCard.icon && (
-              <div className="size-16 bg-primary rounded-lg grid place-items-center">
-                <img
-                  src={currentCard.icon}
-                  alt={currentCard.name}
-                  className="w-12 h-12 object-contain"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.style.display = "none";
-                  }}
-                />
-                <span className="text-2xl">🎮</span>
-              </div>
-            )}
-            <div>
-              <h3 className="text-lg font-bold">{currentCard.name}</h3>
-              <p className="text-muted-foreground text-sm">
-                {currentCard.pathName}
-              </p>
-            </div>
-          </div>
+          <Preview
+            name={currentCard.name}
+            icon={currentCard.icon}
+            pathName={currentCard.pathName}
+          />
         ) : (
           <div className="text-center p-2 text-muted-foreground">
             <p className="font-semibold">No cartridge detected</p>

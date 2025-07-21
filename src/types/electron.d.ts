@@ -28,11 +28,20 @@ declare global {
       send: (channel: string, ...args: any[]) => void;
       invoke: (channel: string, ...args: any[]) => Promise<any>;
     };
+    electronAPI: {
+      showOpenDialog: (options: {
+        properties: string[];
+        filters: { name: string; extensions: string[] }[];
+      }) => Promise<{ canceled: boolean; filePaths: string[] }>;
+    };
     nfcAPI: {
       getCurrentCard: () => Promise<NFCCardData | null>;
       getNFCStatus: () => Promise<NFCStatus>;
       reconnectNFC: () => Promise<{ success: boolean }>;
       sendCommand: (command: string) => Promise<{ success: boolean }>;
+      writeNFCCard: (
+        cardData: NFCCardData
+      ) => Promise<{ success: boolean; error?: string }>;
       hideToTray: () => Promise<{ success: boolean }>;
       onCardDetected: (callback: (cardData: NFCCardData) => void) => void;
       onNFCStatusChange: (callback: (status: NFCStatus) => void) => void;
