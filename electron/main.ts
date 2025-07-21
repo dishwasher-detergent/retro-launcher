@@ -48,23 +48,19 @@ function createWindow() {
     },
   });
 
-  // Test active push message to Renderer-process.
   win.webContents.on("did-finish-load", () => {
     win?.webContents.send("main-process-message", new Date().toLocaleString());
-    // Send initial NFC data if available
     const currentCard = nfcService.getCurrentCardData();
     if (currentCard) {
       win?.webContents.send("nfc-card-data", currentCard);
     }
   });
 
-  // Handle window close - hide to tray instead of closing
   win.on("close", (event) => {
     if (!isQuiting) {
       event.preventDefault();
       win?.hide();
 
-      // Show notification that app is still running in tray
       if (trayService) {
         trayService.showNotification(
           "Retro Launcher",
@@ -75,7 +71,6 @@ function createWindow() {
     }
   });
 
-  // Handle minimize to tray (optional - remove this if you want minimize to stay in taskbar)
   win.on("minimize", (event: Electron.Event) => {
     event.preventDefault();
     win?.hide();
@@ -93,20 +88,18 @@ function createWindow() {
   } else {
     win.loadFile(path.join(RENDERER_DIST, "index.html"));
   }
+
+  win.webContents.openDevTools();
 }
 
 function initializeServices() {
-  // Initialize NFC service
   nfcService = new NFCService();
 
-  // Setup NFC event handlers
   nfcService.on("cardDetected", (cardData: NFCCardData) => {
-    // Send card data to renderer if window exists
     if (win && !win.isDestroyed()) {
       win.webContents.send("nfc-card-data", cardData);
     }
 
-    // Show notification
     if (trayService) {
       trayService.showNotification(
         "NFC Card Detected",
@@ -144,7 +137,6 @@ function initializeServices() {
     }
   });
 
-  // Initialize tray service
   trayService = new TrayService(nfcService, {
     showWindow: () => {
       if (win) {
@@ -160,34 +152,37 @@ function initializeServices() {
 
   trayService.initializeTray(process.env.VITE_PUBLIC || "");
 
-  // Setup IPC handlers
   setupIPCHandlers();
 }
 
 function setupIPCHandlers() {
-  // Get current NFC card data
   ipcMain.handle("get-current-card", () => {
     return nfcService.getCurrentCardData();
   });
 
-  // Get NFC connection status
   ipcMain.handle("get-nfc-status", () => {
-    return { connected: nfcService.isESP32Connected() };
+    console.log("IPC: get-nfc-status called");
+    console.log("nfcService exists:", !!nfcService);
+    if (nfcService) {
+      const status = nfcService.isESP32Connected();
+      console.log("IPC: returning status:", status);
+      return { connected: status };
+    } else {
+      console.log("IPC: nfcService not initialized, returning false");
+      return { connected: false };
+    }
   });
 
-  // Reconnect to ESP32
   ipcMain.handle("reconnect-nfc", () => {
     nfcService.reconnect();
     return { success: true };
   });
 
-  // Send command to ESP32
   ipcMain.handle("send-nfc-command", (_, command: string) => {
     nfcService.sendCommand(command);
     return { success: true };
   });
 
-  // Hide window to tray
   ipcMain.handle("hide-to-tray", () => {
     if (win) {
       win.hide();
@@ -197,7 +192,6 @@ function setupIPCHandlers() {
 }
 
 function setupGlobalShortcuts() {
-  // Register global shortcut to toggle window visibility
   globalShortcut.register("CommandOrControl+Shift+R", () => {
     if (win) {
       if (win.isVisible()) {
@@ -214,7 +208,6 @@ function setupGlobalShortcuts() {
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
 app.on("window-all-closed", () => {
-  // Don't quit the app when all windows are closed - keep running in tray
   if (process.platform === "darwin") {
     isQuiting = true;
     app.quit();

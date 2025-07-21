@@ -1,11 +1,13 @@
+import { LucideRefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Button } from "./components/ui/button";
 import { NFCCardData, NFCStatus } from "./types/electron";
 
 function App() {
   const [currentCard, setCurrentCard] = useState<NFCCardData | null>(null);
   const [nfcStatus, setNFCStatus] = useState<NFCStatus>({ connected: false });
   const [isLoading, setIsLoading] = useState(true);
-  const [notifications, setNotifications] = useState<string[]>([]);
+  const [_, setNotifications] = useState<string[]>([]);
 
   useEffect(() => {
     // Initialize data when component mounts
@@ -19,6 +21,8 @@ function App() {
       });
 
       window.nfcAPI.onNFCStatusChange((status: NFCStatus) => {
+        console.log("NFC status changed:", status);
+
         setNFCStatus(status);
         addNotification(
           status.connected ? "NFC Connected" : "NFC Disconnected"
@@ -82,9 +86,9 @@ function App() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+      <div className="bg-background text-foreground flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
           <p>Loading NFC Reader...</p>
         </div>
       </div>
@@ -92,26 +96,28 @@ function App() {
   }
 
   return (
-    <div className="p-4">
+    <div className="p-4 bg-background text-foreground">
       <div className="flex flex-row gap-1 items-center mb-2">
         <div
           className={`h-2 w-2 rounded-full animate-pulse ${
-            nfcStatus.connected ? "bg-green-600" : "bg-red-600"
+            nfcStatus.connected ? "bg-emerald-600" : "bg-destructive"
           }`}
         />
         <p className="font-semibold text-sm">
           {nfcStatus.connected ? "Connected" : "Disconnected"}
         </p>
         {!nfcStatus.connected && (
-          <button onClick={handleReconnect}>Retry</button>
+          <Button variant="ghost" size="icon" onClick={handleReconnect}>
+            <LucideRefreshCw className="size-4" />
+          </Button>
         )}
       </div>
       <h2 className="text-xl font-bold mb-4">Current Game</h2>
-      <div className="bg-gray-100 rounded-lg p-2">
+      <div className="bg-muted rounded-lg p-2">
         {currentCard ? (
           <div className="flex items-start gap-4">
             {currentCard.icon && (
-              <div className="w-16 h-16 bg-gray-300 rounded-lg grid place-items-center">
+              <div className="size-16 bg-primary rounded-lg grid place-items-center">
                 <img
                   src={currentCard.icon}
                   alt={currentCard.name}
@@ -126,11 +132,13 @@ function App() {
             )}
             <div>
               <h3 className="text-lg font-bold">{currentCard.name}</h3>
-              <p className="text-gray-400 text-sm">{currentCard.pathName}</p>
+              <p className="text-muted-foreground text-sm">
+                {currentCard.pathName}
+              </p>
             </div>
           </div>
         ) : (
-          <div className="text-center p-2 text-gray-400">
+          <div className="text-center p-2 text-muted-foreground">
             <p className="font-semibold">No cartridge detected</p>
             <p className="text-sm">Place a cartridge in the reader.</p>
           </div>

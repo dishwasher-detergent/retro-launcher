@@ -2,7 +2,6 @@ import { exec } from "child_process";
 import { EventEmitter } from "events";
 import {
   ESP32_CONNECTION_TIMEOUT,
-  ESP32_PORT_PATTERNS,
   ESP32_RECONNECT_INTERVAL,
   SERIAL_PORT_CONFIG,
 } from "../constants/nfc.constant";
@@ -24,7 +23,7 @@ async function loadSerialPort() {
 
 export class NFCService extends EventEmitter {
   private currentCardData: NFCCardData | null = null;
-  private isConnected = false;
+  private isConnected = false; // Start as disconnected
   private reconnectTimer: NodeJS.Timeout | null = null;
   private cardDetectionTimer: NodeJS.Timeout | null = null;
   private esp32Port: any = null;
@@ -32,7 +31,9 @@ export class NFCService extends EventEmitter {
 
   constructor() {
     super();
-    // Initialize SerialPort and then start services
+
+    this.isConnected = false;
+    this.isSerialPortAvailable = false;
     this.initializeServices();
   }
 
@@ -40,17 +41,31 @@ export class NFCService extends EventEmitter {
    * Initialize all services
    */
   private async initializeServices(): Promise<void> {
-    // Try to load SerialPort
+    console.log("Starting NFC service initialization...");
+
     this.isSerialPortAvailable = await loadSerialPort();
+    console.log("SerialPort availability:", this.isSerialPortAvailable);
 
     if (this.isSerialPortAvailable) {
       console.log(
         "SerialPort loaded successfully, attempting ESP32 connection"
       );
-      this.initializeConnection();
+
+      this.isConnected = false;
+      this.emit("disconnected");
+
+      await this.initializeConnection();
     } else {
       console.log("SerialPort not available, ESP32 connection disabled");
+
+      this.isConnected = false;
+      this.emit("disconnected");
     }
+
+    console.log(
+      "NFC service initialization complete. Final status:",
+      this.isESP32Connected()
+    );
   }
 
   /**
@@ -59,6 +74,8 @@ export class NFCService extends EventEmitter {
   private async initializeConnection(): Promise<void> {
     if (!this.isSerialPortAvailable || !SerialPort) {
       console.log("SerialPort not available, skipping ESP32 connection");
+      this.isConnected = false;
+      this.emit("disconnected");
       return;
     }
 
@@ -67,15 +84,16 @@ export class NFCService extends EventEmitter {
       if (portPath) {
         await this.connectToESP32(portPath);
       } else {
-        console.log(
-          "ESP32 not found, retrying in",
-          ESP32_RECONNECT_INTERVAL,
-          "ms"
-        );
+        console.log("ESP32 not found, no compatible device detected");
+        this.isConnected = false;
+        this.emit("disconnected");
+        console.log("Will retry connection in", ESP32_RECONNECT_INTERVAL, "ms");
         this.scheduleReconnect();
       }
     } catch (error) {
       console.error("Failed to initialize ESP32 connection:", error);
+      this.isConnected = false;
+      this.emit("disconnected");
       this.scheduleReconnect();
     }
   }
@@ -88,37 +106,109 @@ export class NFCService extends EventEmitter {
 
     try {
       const ports = await SerialPort.list();
+      console.log(
+        `Found ${ports.length} serial ports:`,
+        ports.map(
+          (p: any) =>
+            `${p.path} (${p.manufacturer || "Unknown"}) - ${
+              p.pnpId || "No PnP ID"
+            }`
+        )
+      );
 
-      // Look for ESP32 by manufacturer or description
       for (const port of ports) {
         const manufacturer = port.manufacturer?.toLowerCase() || "";
         const description = port.pnpId?.toLowerCase() || "";
+        const productId = port.productId?.toLowerCase() || "";
+        const vendorId = port.vendorId?.toLowerCase() || "";
 
-        if (
-          manufacturer.includes("espressif") ||
-          manufacturer.includes("silicon labs") ||
-          description.includes("cp210") ||
-          description.includes("ch340") ||
-          ESP32_PORT_PATTERNS.some((pattern) => pattern.test(port.path))
-        ) {
-          console.log(`Found potential ESP32 port: ${port.path}`);
-          return port.path;
+        console.log(
+          `Checking port ${port.path}: manufacturer="${manufacturer}", pnpId="${description}", productId="${productId}", vendorId="${vendorId}"`
+        );
+
+        if (description.includes("retro-launcher")) {
+          console.log(
+            `Found potential ESP32 port: ${port.path} - ${manufacturer}`
+          );
+
+          const isValidESP32 = await this.validateESP32Port(port.path);
+          if (isValidESP32) {
+            return port.path;
+          }
         }
       }
 
-      // Fallback: try the first available COM port on Windows
-      if (process.platform === "win32" && ports.length > 0) {
-        const comPort = ports.find((port: any) => port.path.startsWith("COM"));
-        if (comPort) {
-          console.log(`Trying fallback COM port: ${comPort.path}`);
-          return comPort.path;
-        }
-      }
-
+      console.log("No ESP32-compatible ports found");
       return null;
     } catch (error) {
       console.error("Error listing serial ports:", error);
       return null;
+    }
+  }
+
+  /**
+   * Validate if a port is actually an ESP32 with NFC capability
+   */
+  private async validateESP32Port(portPath: string): Promise<boolean> {
+    try {
+      console.log(`Validating ESP32 port: ${portPath}`);
+
+      const testPort = new SerialPort({
+        path: portPath,
+        ...SERIAL_PORT_CONFIG,
+      });
+
+      return new Promise((resolve) => {
+        let responseReceived = false;
+        const timeout = setTimeout(() => {
+          if (!responseReceived) {
+            console.log(
+              `Port ${portPath} validation timeout - not a valid ESP32 NFC device`
+            );
+            testPort.close();
+            resolve(false);
+          }
+        }, 2000); // 2 second timeout
+
+        testPort.on("open", () => {
+          console.log(`Sending validation command to ${portPath}`);
+          // Send a command that our ESP32 NFC device should respond to
+          testPort.write("IDENTIFY\n");
+        });
+
+        testPort.on("data", (data: Buffer) => {
+          const response = data.toString().trim();
+          console.log(`Received from ${portPath}:`, response);
+
+          // Look for specific responses from your ESP32 NFC device
+          if (
+            response.includes("RETRO-LAUNCHER-NFC-DEVICE") ||
+            response.includes("Retro Launcher") ||
+            response.includes("NFC Reader") ||
+            response.includes("ESP32 NFC") ||
+            response.includes("MFRC522") ||
+            response.includes("Ready to read NFC cards")
+          ) {
+            responseReceived = true;
+            clearTimeout(timeout);
+            testPort.close();
+            console.log(`Port ${portPath} validated as ESP32 NFC device`);
+            resolve(true);
+          }
+        });
+
+        testPort.on("error", (error: any) => {
+          console.log(`Port ${portPath} validation error:`, error.message);
+          clearTimeout(timeout);
+          testPort.close();
+          resolve(false);
+        });
+
+        testPort.open();
+      });
+    } catch (error) {
+      console.log(`Port ${portPath} validation failed:`, error);
+      return false;
     }
   }
 
@@ -176,9 +266,8 @@ export class NFCService extends EventEmitter {
     this.esp32Port.on("data", (data: Buffer) => {
       buffer += data.toString();
 
-      // Look for complete JSON messages (assuming they end with newline)
       const lines = buffer.split("\n");
-      buffer = lines.pop() || ""; // Keep incomplete line in buffer
+      buffer = lines.pop() || "";
 
       for (const line of lines) {
         this.processIncomingData(line.trim());
@@ -195,15 +284,12 @@ export class NFCService extends EventEmitter {
     try {
       const parsedData = JSON.parse(data) as NFCCardData;
 
-      // Validate the data structure
       if (this.isValidNFCCardData(parsedData)) {
         this.currentCardData = parsedData;
         console.log("NFC card detected:", parsedData);
 
-        // Emit card detected event
         this.emit("cardDetected", parsedData);
 
-        // Launch application if pathName is provided
         if (parsedData.pathName) {
           this.launchApplication(parsedData.pathName);
         }
@@ -211,7 +297,6 @@ export class NFCService extends EventEmitter {
         console.warn("Invalid NFC card data received:", data);
       }
     } catch (error) {
-      // Not JSON data, might be debug output from ESP32
       console.log("ESP32 debug:", data);
     }
   }
@@ -272,7 +357,16 @@ export class NFCService extends EventEmitter {
    * Get connection status
    */
   public isESP32Connected(): boolean {
-    return this.isConnected && this.isSerialPortAvailable;
+    const connected =
+      this.isConnected && this.esp32Port && this.esp32Port.isOpen;
+    console.log(
+      `ESP32 Connection Status: isConnected=${
+        this.isConnected
+      }, hasPort=${!!this.esp32Port}, isPortOpen=${
+        this.esp32Port?.isOpen
+      }, result=${connected}`
+    );
+    return connected;
   }
 
   /**
