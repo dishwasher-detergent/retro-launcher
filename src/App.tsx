@@ -10,10 +10,8 @@ function App() {
   const [notifications, setNotifications] = useState<string[]>([]);
 
   useEffect(() => {
-    // Initialize data when component mounts
     initializeData();
 
-    // Setup event listeners
     if (window.nfcAPI) {
       window.nfcAPI.onCardDetected((cardData: NFCCardData) => {
         setCurrentCard(cardData);
@@ -152,12 +150,17 @@ function App() {
         )}
       </div>
       <h2 className="text-xl font-bold mb-2">Logs</h2>
-      <div className="bg-muted rounded-lg p-2 h-60 overflow-y-auto">
+      <div className="bg-muted rounded-lg p-4 h-60 overflow-y-auto">
         {notifications.map((notification, index) => (
           <p key={index} className="text-sm text-muted-foreground">
             {notification}
           </p>
         ))}
+        {notifications.length === 0 && (
+          <p className="text-sm text-muted-foreground">
+            No notifications yet. Interact with the NFC reader to see logs.
+          </p>
+        )}
       </div>
     </div>
   );

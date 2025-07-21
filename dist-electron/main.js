@@ -4,8 +4,25 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
 import { nativeImage, Tray, Menu, app, BrowserWindow, globalShortcut, ipcMain } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { exec } from "child_process";
 import { EventEmitter } from "events";
+import { exec } from "child_process";
+class ApplicationLauncherService extends EventEmitter {
+  constructor() {
+    super();
+  }
+  launchApplication(pathName) {
+    console.log(`Launching application: ${pathName}`);
+    exec(pathName, (error) => {
+      if (error) {
+        console.error(`Failed to launch application: ${error.message}`);
+        this.emit("launchError", { pathName, error: error.message });
+      } else {
+        console.log(`Successfully launched: ${pathName}`);
+        this.emit("applicationLaunched", { pathName });
+      }
+    });
+  }
+}
 const ESP32_BAUD_RATE = 115200;
 const ESP32_CONNECTION_TIMEOUT = 5e3;
 const ESP32_RECONNECT_INTERVAL = 3e3;
@@ -16,6 +33,114 @@ const SERIAL_PORT_CONFIG = {
   parity: "none",
   autoOpen: false
 };
+class DeviceConnectionService extends EventEmitter {
+  constructor() {
+    super();
+    __publicField(this, "device", null);
+    __publicField(this, "isConnected", false);
+    __publicField(this, "reconnectTimer", null);
+  }
+  async connect(device) {
+    return new Promise((resolve, reject) => {
+      this.device = device;
+      const timeout = setTimeout(() => {
+        var _a;
+        (_a = this.device) == null ? void 0 : _a.close();
+        reject(new Error("Connection timeout"));
+      }, ESP32_CONNECTION_TIMEOUT);
+      this.device.on("open", () => {
+        clearTimeout(timeout);
+        this.isConnected = true;
+        console.log(`Device connected successfully`);
+        this.emit("connected");
+        resolve();
+      });
+      this.device.on("error", (error) => {
+        clearTimeout(timeout);
+        console.error("Device connection error:", error);
+        this.handleDisconnection();
+        reject(error);
+      });
+      this.device.on("close", () => {
+        console.log("Device connection closed");
+        this.handleDisconnection();
+      });
+      this.device.open();
+    });
+  }
+  handleDisconnection() {
+    this.isConnected = false;
+    this.emit("disconnected");
+    this.scheduleReconnect();
+  }
+  scheduleReconnect() {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+    }
+    this.reconnectTimer = setTimeout(() => {
+      if (!this.isConnected) {
+        this.emit("reconnectRequested");
+      }
+    }, ESP32_RECONNECT_INTERVAL);
+  }
+  sendCommand(command) {
+    if (this.device && this.isConnected) {
+      this.device.write(command + "\n");
+    } else {
+      console.warn("Cannot send command: Device not connected");
+    }
+  }
+  setupDataHandler(callback) {
+    if (!this.device) return;
+    let buffer = "";
+    this.device.on("data", (data) => {
+      buffer += data.toString();
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+      for (const line of lines) {
+        const trimmedLine = line.trim();
+        if (trimmedLine) {
+          callback(trimmedLine);
+        }
+      }
+    });
+  }
+  get connected() {
+    return this.isConnected && this.device && this.device.isOpen;
+  }
+  disconnect() {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    if (this.device && this.device.isOpen) {
+      this.device.close();
+    }
+    this.device = null;
+    this.isConnected = false;
+  }
+}
+class NFCDataProcessor {
+  processIncomingData(data) {
+    if (!data) return null;
+    try {
+      const parsedData = JSON.parse(data);
+      if (this.isValidNFCCardData(parsedData)) {
+        console.log("NFC card detected:", parsedData);
+        return parsedData;
+      } else {
+        console.warn("Invalid NFC card data received:", data);
+        return null;
+      }
+    } catch (error) {
+      console.log("ESP32 debug:", data);
+      return null;
+    }
+  }
+  isValidNFCCardData(data) {
+    return typeof data === "object" && data !== null && typeof data.name === "string" && typeof data.icon === "string" && typeof data.pathName === "string";
+  }
+}
 let SerialPort = null;
 async function loadSerialPort() {
   try {
@@ -27,78 +152,19 @@ async function loadSerialPort() {
     return false;
   }
 }
-class NFCService extends EventEmitter {
+class SerialPortService extends EventEmitter {
   constructor() {
     super();
-    __publicField(this, "currentCardData", null);
-    __publicField(this, "isConnected", false);
-    // Start as disconnected
-    __publicField(this, "reconnectTimer", null);
-    __publicField(this, "cardDetectionTimer", null);
-    __publicField(this, "esp32Port", null);
-    __publicField(this, "isSerialPortAvailable", false);
-    this.isConnected = false;
-    this.isSerialPortAvailable = false;
-    this.initializeServices();
+    __publicField(this, "isAvailable", false);
+    this.initialize();
   }
-  /**
-   * Initialize all services
-   */
-  async initializeServices() {
-    console.log("Starting NFC service initialization...");
-    this.isSerialPortAvailable = await loadSerialPort();
-    console.log("SerialPort availability:", this.isSerialPortAvailable);
-    if (this.isSerialPortAvailable) {
-      console.log(
-        "SerialPort loaded successfully, attempting ESP32 connection"
-      );
-      this.isConnected = false;
-      this.emit("disconnected");
-      await this.initializeConnection();
-    } else {
-      console.log("SerialPort not available, ESP32 connection disabled");
-      this.isConnected = false;
-      this.emit("disconnected");
-    }
-    console.log(
-      "NFC service initialization complete. Final status:",
-      this.isESP32Connected()
-    );
+  async initialize() {
+    this.isAvailable = await loadSerialPort();
+    console.log("SerialPort availability:", this.isAvailable);
   }
-  /**
-   * Initialize ESP32 connection
-   */
-  async initializeConnection() {
-    if (!this.isSerialPortAvailable || !SerialPort) {
-      console.log("SerialPort not available, skipping ESP32 connection");
-      this.isConnected = false;
-      this.emit("disconnected");
-      return;
-    }
-    try {
-      const portPath = await this.findESP32Port();
-      if (portPath) {
-        await this.connectToESP32(portPath);
-      } else {
-        console.log("ESP32 not found, no compatible device detected");
-        this.isConnected = false;
-        this.emit("disconnected");
-        console.log("Will retry connection in", ESP32_RECONNECT_INTERVAL, "ms");
-        this.scheduleReconnect();
-      }
-    } catch (error) {
-      console.error("Failed to initialize ESP32 connection:", error);
-      this.isConnected = false;
-      this.emit("disconnected");
-      this.scheduleReconnect();
-    }
-  }
-  /**
-   * Find available ESP32 port
-   */
-  async findESP32Port() {
-    var _a, _b, _c, _d;
-    if (!SerialPort) return null;
+  async findCompatiblePorts() {
+    var _a;
+    if (!this.isAvailable || !SerialPort) return [];
     try {
       const ports = await SerialPort.list();
       console.log(
@@ -107,37 +173,26 @@ class NFCService extends EventEmitter {
           (p) => `${p.path} (${p.manufacturer || "Unknown"}) - ${p.pnpId || "No PnP ID"}`
         )
       );
+      const compatiblePorts = [];
       for (const port of ports) {
-        const manufacturer = ((_a = port.manufacturer) == null ? void 0 : _a.toLowerCase()) || "";
-        const description = ((_b = port.pnpId) == null ? void 0 : _b.toLowerCase()) || "";
-        const productId = ((_c = port.productId) == null ? void 0 : _c.toLowerCase()) || "";
-        const vendorId = ((_d = port.vendorId) == null ? void 0 : _d.toLowerCase()) || "";
-        console.log(
-          `Checking port ${port.path}: manufacturer="${manufacturer}", pnpId="${description}", productId="${productId}", vendorId="${vendorId}"`
-        );
+        const description = ((_a = port.pnpId) == null ? void 0 : _a.toLowerCase()) || "";
         if (description.includes("retro-launcher")) {
-          console.log(
-            `Found potential ESP32 port: ${port.path} - ${manufacturer}`
-          );
-          const isValidESP32 = await this.validateESP32Port(port.path);
-          if (isValidESP32) {
-            return port.path;
+          console.log(`Found potential compatible port: ${port.path}`);
+          if (await this.validatePort(port.path)) {
+            compatiblePorts.push(port.path);
           }
         }
       }
-      console.log("No ESP32-compatible ports found");
-      return null;
+      return compatiblePorts;
     } catch (error) {
       console.error("Error listing serial ports:", error);
-      return null;
+      return [];
     }
   }
-  /**
-   * Validate if a port is actually an ESP32 with NFC capability
-   */
-  async validateESP32Port(portPath) {
+  async validatePort(portPath) {
+    if (!SerialPort) return false;
     try {
-      console.log(`Validating ESP32 port: ${portPath}`);
+      console.log(`Validating port: ${portPath}`);
       const testPort = new SerialPort({
         path: portPath,
         ...SERIAL_PORT_CONFIG
@@ -146,9 +201,7 @@ class NFCService extends EventEmitter {
         let responseReceived = false;
         const timeout = setTimeout(() => {
           if (!responseReceived) {
-            console.log(
-              `Port ${portPath} validation timeout - not a valid ESP32 NFC device`
-            );
+            console.log(`Port ${portPath} validation timeout`);
             testPort.close();
             resolve(false);
           }
@@ -164,7 +217,7 @@ class NFCService extends EventEmitter {
             responseReceived = true;
             clearTimeout(timeout);
             testPort.close();
-            console.log(`Port ${portPath} validated as ESP32 NFC device`);
+            console.log(`Port ${portPath} validated as compatible device`);
             resolve(true);
           }
         });
@@ -181,192 +234,132 @@ class NFCService extends EventEmitter {
       return false;
     }
   }
-  /**
-   * Connect to ESP32 via serial port
-   */
-  async connectToESP32(portPath) {
-    return new Promise((resolve, reject) => {
-      this.esp32Port = new SerialPort({
-        path: portPath,
-        ...SERIAL_PORT_CONFIG
-      });
-      const timeout = setTimeout(() => {
-        var _a;
-        (_a = this.esp32Port) == null ? void 0 : _a.close();
-        reject(new Error("Connection timeout"));
-      }, ESP32_CONNECTION_TIMEOUT);
-      this.esp32Port.on("open", () => {
-        clearTimeout(timeout);
-        this.isConnected = true;
-        console.log(`Connected to ESP32 on port: ${portPath}`);
-        this.setupDataHandlers();
-        this.emit("connected");
-        resolve();
-      });
-      this.esp32Port.on("error", (error) => {
-        clearTimeout(timeout);
-        console.error("ESP32 connection error:", error);
-        this.isConnected = false;
-        this.emit("disconnected");
-        reject(error);
-      });
-      this.esp32Port.on("close", () => {
-        this.isConnected = false;
-        console.log("ESP32 connection closed");
-        this.emit("disconnected");
-        this.scheduleReconnect();
-      });
-      this.esp32Port.open();
+  createConnection(portPath) {
+    if (!this.isAvailable || !SerialPort) {
+      throw new Error("SerialPort not available");
+    }
+    return new SerialPort({
+      path: portPath,
+      ...SERIAL_PORT_CONFIG
     });
   }
-  /**
-   * Setup data handlers for incoming ESP32 data
-   */
-  setupDataHandlers() {
-    if (!this.esp32Port) return;
-    let buffer = "";
-    this.esp32Port.on("data", (data) => {
-      buffer += data.toString();
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-      for (const line of lines) {
-        this.processIncomingData(line.trim());
-      }
+  get isSerialPortAvailable() {
+    return this.isAvailable;
+  }
+  async reinitialize() {
+    await this.initialize();
+  }
+}
+class NFCService extends EventEmitter {
+  constructor() {
+    super();
+    __publicField(this, "currentCardData", null);
+    __publicField(this, "serialPortService");
+    __publicField(this, "connectionService");
+    __publicField(this, "launcherService");
+    __publicField(this, "dataProcessor");
+    this.serialPortService = new SerialPortService();
+    this.connectionService = new DeviceConnectionService();
+    this.launcherService = new ApplicationLauncherService();
+    this.dataProcessor = new NFCDataProcessor();
+    this.setupEventHandlers();
+    this.initializeServices();
+  }
+  setupEventHandlers() {
+    this.connectionService.on("connected", () => {
+      console.log("ESP32 connected successfully");
+      this.emit("connected");
+    });
+    this.connectionService.on("disconnected", () => {
+      console.log("ESP32 disconnected");
+      this.emit("disconnected");
+    });
+    this.connectionService.on("reconnectRequested", () => {
+      this.initializeConnection();
+    });
+    this.launcherService.on("applicationLaunched", (data) => {
+      this.emit("applicationLaunched", data);
+    });
+    this.launcherService.on("launchError", (data) => {
+      this.emit("launchError", data);
     });
   }
-  /**
-   * Process incoming data from ESP32
-   */
-  processIncomingData(data) {
-    if (!data) return;
+  async initializeServices() {
+    console.log("Starting NFC service initialization...");
+    if (!this.serialPortService.isSerialPortAvailable) {
+      console.log("SerialPort not available, ESP32 connection disabled");
+      this.emit("disconnected");
+      return;
+    }
+    console.log("SerialPort loaded successfully, attempting ESP32 connection");
+    await this.initializeConnection();
+    console.log("NFC service initialization complete");
+  }
+  async initializeConnection() {
+    if (!this.serialPortService.isSerialPortAvailable) {
+      console.log("SerialPort not available, skipping ESP32 connection");
+      this.emit("disconnected");
+      return;
+    }
     try {
-      const parsedData = JSON.parse(data);
-      if (this.isValidNFCCardData(parsedData)) {
-        this.currentCardData = parsedData;
-        console.log("NFC card detected:", parsedData);
-        this.emit("cardDetected", parsedData);
-        if (parsedData.pathName) {
-          this.launchApplication(parsedData.pathName);
-        }
+      const compatiblePorts = await this.serialPortService.findCompatiblePorts();
+      if (compatiblePorts.length > 0) {
+        await this.connectToDevice(compatiblePorts[0]);
       } else {
-        console.warn("Invalid NFC card data received:", data);
+        console.log("ESP32 not found, no compatible device detected");
+        this.emit("disconnected");
       }
     } catch (error) {
-      console.log("ESP32 debug:", data);
+      console.error("Failed to initialize ESP32 connection:", error);
+      this.emit("disconnected");
     }
   }
-  /**
-   * Validate NFC card data structure
-   */
-  isValidNFCCardData(data) {
-    return typeof data === "object" && data !== null && typeof data.name === "string" && typeof data.icon === "string" && typeof data.pathName === "string";
-  }
-  /**
-   * Launch application based on pathName
-   */
-  launchApplication(pathName) {
-    console.log(`Launching application: ${pathName}`);
-    exec(pathName, (error) => {
-      if (error) {
-        console.error(`Failed to launch application: ${error.message}`);
-        this.emit("launchError", { pathName, error: error.message });
-      } else {
-        console.log(`Successfully launched: ${pathName}`);
-        this.emit("applicationLaunched", { pathName });
-      }
-    });
-  }
-  /**
-   * Schedule reconnection attempt
-   */
-  scheduleReconnect() {
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
+  async connectToDevice(portPath) {
+    try {
+      const device = this.serialPortService.createConnection(portPath);
+      await this.connectionService.connect(device);
+      this.connectionService.setupDataHandler((data) => {
+        this.handleIncomingData(data);
+      });
+    } catch (error) {
+      console.error("Failed to connect to device:", error);
+      this.emit("disconnected");
     }
-    this.reconnectTimer = setTimeout(() => {
-      if (!this.isConnected) {
-        this.initializeConnection();
-      }
-    }, ESP32_RECONNECT_INTERVAL);
   }
-  /**
-   * Get current card data
-   */
+  handleIncomingData(data) {
+    const cardData = this.dataProcessor.processIncomingData(data);
+    if (cardData) {
+      this.currentCardData = cardData;
+      this.emit("cardDetected", cardData);
+      if (cardData.pathName) {
+        this.launcherService.launchApplication(cardData.pathName);
+      }
+    }
+  }
   getCurrentCardData() {
     return this.currentCardData;
   }
-  /**
-   * Get connection status
-   */
   isESP32Connected() {
-    var _a;
-    const connected = this.isConnected && this.esp32Port && this.esp32Port.isOpen;
-    console.log(
-      `ESP32 Connection Status: isConnected=${this.isConnected}, hasPort=${!!this.esp32Port}, isPortOpen=${(_a = this.esp32Port) == null ? void 0 : _a.isOpen}, result=${connected}`
-    );
-    return connected;
+    return this.connectionService.connected;
   }
-  /**
-   * Send command to ESP32
-   */
   sendCommand(command) {
-    if (!this.isSerialPortAvailable) {
+    if (!this.serialPortService.isSerialPortAvailable) {
       console.warn("Cannot send command: SerialPort not available");
       return;
     }
-    if (this.esp32Port && this.isConnected) {
-      this.esp32Port.write(command + "\n");
-    } else {
-      console.warn("Cannot send command: ESP32 not connected");
-    }
+    this.connectionService.sendCommand(command);
   }
-  /**
-   * Cleanup and close connections
-   */
-  cleanup() {
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
-    if (this.cardDetectionTimer) {
-      clearTimeout(this.cardDetectionTimer);
-      this.cardDetectionTimer = null;
-    }
-    if (this.esp32Port && this.esp32Port.isOpen) {
-      this.esp32Port.close();
-    }
-    this.esp32Port = null;
-    this.isConnected = false;
-    this.currentCardData = null;
-  }
-  /**
-   * Initialize SerialPort availability check
-   */
-  async initializeSerialPort() {
-    try {
-      this.isSerialPortAvailable = await loadSerialPort();
-      if (this.isSerialPortAvailable) {
-        console.log("SerialPort reloaded successfully");
-        this.initializeConnection();
-      } else {
-        console.log("SerialPort still not available");
-      }
-    } catch (error) {
-      this.isSerialPortAvailable = false;
-      console.error("SerialPort initialization failed:", error);
-    }
-  }
-  /**
-   * Manually trigger reconnection
-   */
-  reconnect() {
-    if (!this.isSerialPortAvailable) {
+  async reconnect() {
+    if (!this.serialPortService.isSerialPortAvailable) {
       console.log("Attempting to reinitialize SerialPort...");
-      this.initializeSerialPort();
-      return;
+      await this.serialPortService.reinitialize();
     }
     this.cleanup();
-    this.initializeConnection();
+    await this.initializeConnection();
+  }
+  cleanup() {
+    this.connectionService.disconnect();
+    this.currentCardData = null;
   }
 }
 const TRAY_TOOLTIP = "Retro Launcher - NFC Card Reader";
