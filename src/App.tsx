@@ -7,7 +7,7 @@ function App() {
   const [currentCard, setCurrentCard] = useState<NFCCardData | null>(null);
   const [nfcStatus, setNFCStatus] = useState<NFCStatus>({ connected: false });
   const [isLoading, setIsLoading] = useState(true);
-  const [_, setNotifications] = useState<string[]>([]);
+  const [notifications, setNotifications] = useState<string[]>([]);
 
   useEffect(() => {
     // Initialize data when component mounts
@@ -69,7 +69,9 @@ function App() {
   };
 
   const addNotification = (message: string) => {
-    setNotifications((prev) => [...prev.slice(-4), message]); // Keep last 5 notifications
+    const timestamp = new Date().toLocaleTimeString();
+    const timestampedMessage = `[${timestamp}] ${message}`;
+    setNotifications((prev) => [timestampedMessage, ...prev.slice(-16)]);
   };
 
   const handleReconnect = async () => {
@@ -107,13 +109,18 @@ function App() {
           {nfcStatus.connected ? "Connected" : "Disconnected"}
         </p>
         {!nfcStatus.connected && (
-          <Button variant="ghost" size="icon" onClick={handleReconnect}>
-            <LucideRefreshCw className="size-4" />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-6"
+            onClick={handleReconnect}
+          >
+            <LucideRefreshCw className="size-3" />
           </Button>
         )}
       </div>
-      <h2 className="text-xl font-bold mb-4">Current Game</h2>
-      <div className="bg-muted rounded-lg p-2">
+      <h2 className="text-xl font-bold mb-2">Current Game</h2>
+      <div className="bg-muted rounded-lg p-2 mb-6">
         {currentCard ? (
           <div className="flex items-start gap-4">
             {currentCard.icon && (
@@ -143,6 +150,14 @@ function App() {
             <p className="text-sm">Place a cartridge in the reader.</p>
           </div>
         )}
+      </div>
+      <h2 className="text-xl font-bold mb-2">Logs</h2>
+      <div className="bg-muted rounded-lg p-2 h-60 overflow-y-auto">
+        {notifications.map((notification, index) => (
+          <p key={index} className="text-sm text-muted-foreground">
+            {notification}
+          </p>
+        ))}
       </div>
     </div>
   );
