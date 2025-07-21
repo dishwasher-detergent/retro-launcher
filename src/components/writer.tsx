@@ -1,25 +1,55 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Copy, Download, Zap } from "lucide-react";
 import { useRef, useState } from "react";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Preview } from "@/components/ui/preview";
 import { NFCCardData } from "@/types/electron";
 
+const CartridgeSchema = z.object({
+  name: z
+    .string()
+    .min(1, "Name is required")
+    .max(64, "Name must be 64 characters or less"),
+  pathName: z
+    .string()
+    .min(1, "Path is required")
+    .max(64, "Path must be 64 characters or less"),
+  icon: z.string().nullable().optional(),
+});
+
 export function Writer() {
-  const [filePath, setFilePath] = useState<string | null>(null);
-  const [name, setName] = useState<string | null>(null);
-  const [iconData, setIconData] = useState<string | null>(null);
   const [jsonOutput, setJsonOutput] = useState<string | null>(null);
   const [showOutput, setShowOutput] = useState<boolean>(false);
   const iconInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const form = useForm<z.infer<typeof CartridgeSchema>>({
+    resolver: zodResolver(CartridgeSchema),
+    defaultValues: {
+      name: "",
+      pathName: "",
+      icon: null,
+    },
+  });
+
+  const watchedValues = form.watch();
+
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      setFilePath(file.path || file.name);
+      form.setValue("pathName", file.path || file.name);
     }
   };
 
@@ -44,7 +74,7 @@ export function Writer() {
           ctx.drawImage(img, 0, 0, 16, 16);
 
           const resizedDataUrl = canvas.toDataURL("image/png");
-          setIconData(resizedDataUrl);
+          form.setValue("icon", resizedDataUrl);
         }
       };
       img.src = e.target?.result as string;
@@ -52,16 +82,11 @@ export function Writer() {
     reader.readAsDataURL(file);
   };
 
-  const handleWrite = () => {
-    if (!filePath || !name) {
-      alert("Please fill in all required fields");
-      return;
-    }
-
+  const onSubmit = (data: z.infer<typeof CartridgeSchema>) => {
     const cardData: NFCCardData = {
-      name: name,
-      icon: iconData,
-      pathName: filePath,
+      name: data.name,
+      icon: data.icon || null,
+      pathName: data.pathName,
     };
 
     const jsonString = JSON.stringify(cardData, null, 2);
@@ -83,114 +108,141 @@ export function Writer() {
     }
   };
 
-  const canWrite = filePath && name;
+  const canWrite = watchedValues.name && watchedValues.pathName;
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="name">Name *</Label>
-        <Input
-          id="name"
-          value={name || ""}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-            setName(e.target.value)
-          }
-          placeholder="Enter a name for this cartridge..."
-          maxLength={50}
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="file-path">Application Path *</Label>
-        <div className="flex gap-2">
-          <Input
-            id="file-path"
-            value={filePath || ""}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              setFilePath(e.target.value)
-            }
-            placeholder="Select an application to launch..."
-            className="flex-1"
-          />
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".exe,.bat,.cmd,.lnk"
-            onChange={handleFileSelect}
-            className="hidden"
-          />
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            Browse
-          </Button>
-        </div>
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="icon-upload">
-          Upload Icon (optional - will be resized to 16x16)
-        </Label>
-        <div className="flex gap-2 items-center">
-          <input
-            ref={iconInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleIconUpload}
-            className="hidden"
-          />
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => iconInputRef.current?.click()}
-            className="flex-1"
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Choose Image
-          </Button>
-          {iconData && (
-            <div className="w-8 h-8 border rounded flex items-center justify-center bg-muted overflow-hidden">
-              <img src={iconData} alt="Icon preview" className="size-full" />
-            </div>
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <FormField
+          control={form.control}
+          name="name"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Name *</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="Enter a name for this cartridge..."
+                  maxLength={64}
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
           )}
-        </div>
-      </div>
-      {canWrite && (
-        <div className="space-y-2">
-          <Label>Preview</Label>
-          <div className=" bg-background p-2 rounded-lg">
-            <Preview name={name} icon={iconData} pathName={filePath} />
-          </div>
-        </div>
-      )}
-      <Button onClick={handleWrite} disabled={!canWrite} className="w-full">
-        <Zap className="h-4 w-4 mr-2" />
-        Generate Cartridge Data
-      </Button>
-      {showOutput && (
-        <div className="space-y-2">
-          <Label>Generated JSON Data</Label>
-          <div className="relative">
-            <textarea
-              value={jsonOutput || ""}
-              readOnly
-              className="bg-background w-full h-32 p-3 text-sm font-mono border rounded-md resize-none"
-              placeholder="Generated JSON will appear here..."
+        />
+
+        <FormField
+          control={form.control}
+          name="pathName"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Application Path *</FormLabel>
+              <div className="flex gap-2">
+                <FormControl>
+                  <Input
+                    placeholder="Select an application to launch..."
+                    className="flex-1"
+                    maxLength={64}
+                    {...field}
+                  />
+                </FormControl>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".exe,.bat,.cmd,.lnk"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  Browse
+                </Button>
+              </div>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormItem>
+          <FormLabel>
+            Upload Icon (optional - will be resized to 16x16)
+          </FormLabel>
+          <div className="flex gap-2 items-center">
+            <input
+              ref={iconInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleIconUpload}
+              className="hidden"
             />
             <Button
-              onClick={copyToClipboard}
-              size="icon"
-              className="absolute top-2 right-2"
+              type="button"
+              variant="outline"
+              onClick={() => iconInputRef.current?.click()}
+              className="flex-1"
             >
-              <Copy className="size-4" />
+              <Download className="h-4 w-4 mr-2" />
+              Choose Image
             </Button>
+            {watchedValues.icon && (
+              <div className="w-8 h-8 border rounded flex items-center justify-center bg-muted overflow-hidden">
+                <img
+                  src={watchedValues.icon}
+                  alt="Icon preview"
+                  className="size-full"
+                />
+              </div>
+            )}
           </div>
-          <p className="text-xs text-muted-foreground">
-            Copy this JSON data and paste it to your NFC card using your
-            preferred NFC writing tool.
-          </p>
-        </div>
-      )}
-    </div>
+        </FormItem>
+
+        {canWrite && (
+          <FormItem>
+            <FormLabel>Preview</FormLabel>
+            <div className="bg-background p-2 rounded-lg">
+              <Preview
+                name={watchedValues.name}
+                icon={watchedValues.icon}
+                pathName={watchedValues.pathName}
+              />
+            </div>
+          </FormItem>
+        )}
+
+        <Button type="submit" disabled={!canWrite} className="w-full">
+          <Zap className="h-4 w-4 mr-2" />
+          Generate Cartridge Data
+        </Button>
+
+        {showOutput && (
+          <FormItem>
+            <FormLabel>Generated JSON Data</FormLabel>
+            <div className="relative">
+              <textarea
+                value={jsonOutput || ""}
+                readOnly
+                className="bg-background w-full h-32 p-3 text-sm font-mono border rounded-md resize-none"
+                placeholder="Generated JSON will appear here..."
+              />
+              <Button
+                onClick={copyToClipboard}
+                size="icon"
+                className="absolute top-2 right-2"
+                type="button"
+              >
+                <Copy className="size-4" />
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Copy this JSON data and paste it to your NFC card using your
+              preferred NFC writing tool.
+            </p>
+          </FormItem>
+        )}
+      </form>
+    </Form>
   );
 }
