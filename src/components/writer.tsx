@@ -1,17 +1,18 @@
 import { Copy, Download, Zap } from "lucide-react";
 import { useRef, useState } from "react";
-import { NFCCardData } from "../types/electron";
-import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { Label } from "./ui/label";
-import { Preview } from "./ui/preview";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Preview } from "@/components/ui/preview";
+import { NFCCardData } from "@/types/electron";
 
 export function Writer() {
-  const [filePath, setFilePath] = useState("");
-  const [name, setName] = useState("");
-  const [iconData, setIconData] = useState<string>("");
-  const [showOutput, setShowOutput] = useState(false);
-  const [jsonOutput, setJsonOutput] = useState("");
+  const [filePath, setFilePath] = useState<string | null>(null);
+  const [name, setName] = useState<string | null>(null);
+  const [iconData, setIconData] = useState<string | null>(null);
+  const [jsonOutput, setJsonOutput] = useState<string | null>(null);
+  const [showOutput, setShowOutput] = useState<boolean>(false);
   const iconInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -69,6 +70,10 @@ export function Writer() {
   };
 
   const copyToClipboard = async () => {
+    if (!jsonOutput) {
+      return;
+    }
+
     try {
       await navigator.clipboard.writeText(jsonOutput);
       alert("JSON copied to clipboard!");
@@ -86,7 +91,7 @@ export function Writer() {
         <Label htmlFor="name">Name *</Label>
         <Input
           id="name"
-          value={name}
+          value={name || ""}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
             setName(e.target.value)
           }
@@ -99,7 +104,7 @@ export function Writer() {
         <div className="flex gap-2">
           <Input
             id="file-path"
-            value={filePath}
+            value={filePath || ""}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
               setFilePath(e.target.value)
             }
@@ -167,7 +172,7 @@ export function Writer() {
           <Label>Generated JSON Data</Label>
           <div className="relative">
             <textarea
-              value={jsonOutput}
+              value={jsonOutput || ""}
               readOnly
               className="bg-background w-full h-32 p-3 text-sm font-mono border rounded-md resize-none"
               placeholder="Generated JSON will appear here..."

@@ -1,6 +1,6 @@
 export interface NFCCardData {
   name: string;
-  icon: string;
+  icon: string | null;
   pathName: string;
 }
 

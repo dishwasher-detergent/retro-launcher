@@ -1,15 +1,16 @@
 import { LucideRefreshCw, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Button } from "./components/ui/button";
-import { Preview } from "./components/ui/preview";
-import { Writer } from "./components/writer";
-import { NFCCardData, NFCStatus } from "./types/electron";
+
+import { Button } from "@/components/ui/button";
+import { Preview } from "@/components/ui/preview";
+import { Writer } from "@/components/writer";
+import { NFCCardData, NFCStatus } from "@/types/electron";
 
 function App() {
   const [currentCard, setCurrentCard] = useState<NFCCardData | null>(null);
   const [nfcStatus, setNFCStatus] = useState<NFCStatus>({ connected: false });
   const [isLoading, setIsLoading] = useState(true);
-  const [notifications, setNotifications] = useState<string[]>([]);
+  const [logs, setlogs] = useState<string[]>([]);
   const [showWriter, setShowWriter] = useState(false);
 
   useEffect(() => {
@@ -72,7 +73,7 @@ function App() {
   const addNotification = (message: string) => {
     const timestamp = new Date().toLocaleTimeString();
     const timestampedMessage = `[${timestamp}] ${message}`;
-    setNotifications((prev) => [timestampedMessage, ...prev.slice(-16)]);
+    setlogs((prev) => [timestampedMessage, ...prev.slice(-16)]);
   };
 
   const handleReconnect = async () => {
@@ -155,14 +156,14 @@ function App() {
       </div>
       <h2 className="text-xl font-bold mb-2">Logs</h2>
       <div className="bg-muted rounded-lg p-4 h-60 overflow-y-auto border">
-        {notifications.map((notification, index) => (
+        {logs.map((notification, index) => (
           <p key={index} className="text-sm text-muted-foreground">
             {notification}
           </p>
         ))}
-        {notifications.length === 0 && (
+        {logs.length === 0 && (
           <p className="text-sm text-muted-foreground">
-            No notifications yet. Interact with the NFC reader to see logs.
+            No logs yet. Interact with the NFC reader to see logs.
           </p>
         )}
       </div>

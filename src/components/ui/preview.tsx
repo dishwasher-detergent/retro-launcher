@@ -1,7 +1,7 @@
 interface NFCCardPreviewProps {
   name: string;
   pathName: string;
-  icon?: string;
+  icon?: string | null;
 }
 
 export function Preview({ name, icon, pathName }: NFCCardPreviewProps) {
