@@ -1,6 +1,6 @@
 import { app, BrowserWindow, Menu, nativeImage, Tray } from 'electron';
 import * as path from 'path';
-import { NFCTagData } from './nfc-service.interface';
+import { NFCTagData } from '../interfaces/nfc-service.interface';
 
 export class SystemTrayService {
   private tray: Tray | null = null;

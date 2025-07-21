@@ -12,9 +12,9 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import log from 'electron-log';
 import { autoUpdater } from 'electron-updater';
 import path from 'path';
-// import MenuBuilder from './menu'; // Removed - no longer using menu
-import { NFCService } from './nfc-service';
-import { SystemTrayService } from './system-tray';
+
+import { NFCService } from '../services/nfc.service';
+import { SystemTrayService } from '../services/system-tray.service';
 import { resolveHtmlPath } from './util';
 
 class AppUpdater {

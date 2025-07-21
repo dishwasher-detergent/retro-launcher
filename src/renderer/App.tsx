@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Route, MemoryRouter as Router, Routes } from 'react-router-dom';
-import './App.css';
+import './global.css';
 
 interface NFCConnectionStatus {
   connected: boolean;
@@ -44,53 +44,33 @@ function NFCStatus() {
   }, []);
 
   return (
-    <div>
-      <h1>Retro Launcher</h1>
+    <div className="p-6 max-w-lg mx-auto">
+      <h1 className="text-3xl font-bold text-center mb-6">Retro Launcher</h1>
       <div className="nfc-status">
-        <h3>NFC Reader Status</h3>
+        <h3 className="text-xl font-semibold mb-4">NFC Reader Status</h3>
         <div
-          style={{
-            padding: '10px',
-            borderRadius: '5px',
-            backgroundColor: connectionStatus.connected ? '#4CAF50' : '#f44336',
-            color: 'white',
-            marginBottom: '20px',
-          }}
+          className={`p-4 rounded-lg text-white mb-5 text-center font-medium ${
+            connectionStatus.connected ? 'bg-green-500' : 'bg-red-500'
+          }`}
         >
           {connectionStatus.connected ? '🟢 Connected' : '🔴 Disconnected'}
         </div>
 
         {connectionStatus.message && (
-          <div
-            style={{
-              padding: '10px',
-              borderRadius: '5px',
-              backgroundColor: '#f0f0f0',
-              color: '#333',
-              marginBottom: '20px',
-              fontSize: '14px',
-            }}
-          >
+          <div className="p-4 rounded-lg bg-gray-100 text-gray-800 mb-5 text-sm">
             <strong>Status:</strong> {connectionStatus.message}
           </div>
         )}
 
         {connectionStatus.connected && (
           <div>
-            <h3>Current Tag</h3>
+            <h3 className="text-xl font-semibold mb-4">Current Tag</h3>
             {currentTag ? (
-              <div
-                style={{
-                  padding: '10px',
-                  border: '1px solid #ddd',
-                  borderRadius: '5px',
-                  backgroundColor: '#f9f9f9',
-                }}
-              >
-                <p>
+              <div className="p-4 border border-gray-300 rounded-lg bg-gray-50">
+                <p className="mb-2">
                   <strong>Description:</strong> {currentTag.description}
                 </p>
-                <p>
+                <p className="mb-2">
                   <strong>File Path:</strong> {currentTag.filePath}
                 </p>
                 <p>
@@ -98,15 +78,7 @@ function NFCStatus() {
                 </p>
               </div>
             ) : (
-              <div
-                style={{
-                  padding: '10px',
-                  border: '1px solid #ddd',
-                  borderRadius: '5px',
-                  backgroundColor: '#f0f0f0',
-                  color: '#666',
-                }}
-              >
+              <div className="p-4 border border-gray-300 rounded-lg bg-gray-100 text-gray-600">
                 No tag detected - Place an NFC tag on the reader
               </div>
             )}
@@ -114,22 +86,15 @@ function NFCStatus() {
         )}
 
         {!connectionStatus.connected && (
-          <div
-            style={{
-              padding: '15px',
-              border: '1px solid #orange',
-              borderRadius: '5px',
-              backgroundColor: '#fff3cd',
-              color: '#856404',
-              marginTop: '20px',
-            }}
-          >
-            <h4>📡 ESP32 Setup Instructions:</h4>
-            <ol style={{ textAlign: 'left', margin: 0 }}>
+          <div className="p-6 border border-orange-400 rounded-lg bg-yellow-50 text-yellow-800 mt-5">
+            <h4 className="text-lg font-semibold mb-3">
+              📡 ESP32 Setup Instructions:
+            </h4>
+            <ol className="text-left space-y-2 m-0 list-decimal list-inside">
               <li>Connect your ESP32 to your computer via USB</li>
               <li>
-                Upload the RFID reader sketch from the <code>esp32/</code>{' '}
-                folder
+                Upload the RFID reader sketch from the{' '}
+                <code className="bg-gray-200 px-1 rounded">esp32/</code> folder
               </li>
               <li>Make sure the RC522 RFID reader is properly wired</li>
               <li>
@@ -140,7 +105,7 @@ function NFCStatus() {
         )}
       </div>
 
-      <div style={{ marginTop: '20px', fontSize: '12px', color: '#666' }}>
+      <div className="mt-5 text-xs text-gray-500 text-center">
         This app runs in the system tray. Check your system tray for the app
         icon.
       </div>

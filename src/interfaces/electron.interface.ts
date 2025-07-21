@@ -1,4 +1,7 @@
-import { NFCConnectionStatus, NFCTagData } from './nfc-service.interface';
+import {
+  NFCConnectionStatus,
+  NFCTagData,
+} from '../interfaces/nfc-service.interface';
 
 // IPC Channel types
 export type IPCChannels =

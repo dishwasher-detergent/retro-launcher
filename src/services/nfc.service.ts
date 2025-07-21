@@ -2,6 +2,12 @@ import { shell } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
+  ERROR_MESSAGES,
+  ESP32_IDENTIFIERS,
+  SERIAL_COMMANDS,
+  SERIAL_CONFIG,
+} from '../constants/nfc-service.constants';
+import {
   NFCConnectionStatus,
   NFCTagData,
   ReadlineParserInstance,
@@ -9,7 +15,9 @@ import {
   SerialPortInfo,
   SerialPortInstance,
   SerialPortStatic,
-} from './nfc-service.interface';
+} from '../interfaces/nfc-service.interface';
+
+// Constants
 
 let SerialPort: SerialPortStatic | null = null;
 let ReadlineParser: ReadlineParserStatic | null = null;
@@ -32,8 +40,8 @@ export class NFCService {
   private parser: ReadlineParserInstance | null = null;
   private isConnected = false;
   private connectionAttempts = 0;
-  private maxRetries = 3;
-  private retryInterval = 5000; // 5 seconds
+  private readonly maxRetries = SERIAL_CONFIG.MAX_RETRIES;
+  private readonly retryInterval = SERIAL_CONFIG.RETRY_INTERVAL_MS;
   private serialPortAvailable = false;
   private onTagDetectedCallback?: (tagData: NFCTagData) => void;
   private onTagRemovedCallback?: () => void;
@@ -54,7 +62,7 @@ export class NFCService {
         console.log('SerialPort modules not available');
         this.onConnectionStatusChangedCallback?.(
           false,
-          'SerialPort not available. Please install serialport dependencies.',
+          ERROR_MESSAGES.SERIALPORT_NOT_AVAILABLE,
         );
         return;
       }
@@ -65,10 +73,11 @@ export class NFCService {
       const ports = await SerialPort.list();
       const esp32Port = ports.find(
         (port: SerialPortInfo) =>
-          port.manufacturer?.toLowerCase().includes('espressif') ||
-          port.manufacturer?.toLowerCase().includes('silicon labs') ||
-          port.productId === '7523' || // Common ESP32 product ID
-          port.vendorId === '10c4', // Common ESP32 vendor ID
+          ESP32_IDENTIFIERS.MANUFACTURERS.some((manufacturer) =>
+            port.manufacturer?.toLowerCase().includes(manufacturer),
+          ) ||
+          port.productId === ESP32_IDENTIFIERS.PRODUCT_ID ||
+          port.vendorId === ESP32_IDENTIFIERS.VENDOR_ID,
       );
 
       if (!esp32Port) {
@@ -92,7 +101,7 @@ export class NFCService {
           console.log('Max retry attempts reached. ESP32 not available.');
           this.onConnectionStatusChangedCallback?.(
             false,
-            'ESP32 not found after multiple attempts. Please check connection.',
+            ERROR_MESSAGES.ESP32_NOT_FOUND,
           );
         }
         return;
@@ -100,7 +109,7 @@ export class NFCService {
 
       this.port = new SerialPort({
         path: esp32Port.path,
-        baudRate: 115200,
+        baudRate: SERIAL_CONFIG.BAUD_RATE,
       });
 
       this.parser = new ReadlineParser();
@@ -112,7 +121,7 @@ export class NFCService {
         this.connectionAttempts = 0; // Reset attempts on successful connection
         this.onConnectionStatusChangedCallback?.(
           true,
-          'ESP32 connected successfully',
+          ERROR_MESSAGES.ESP32_CONNECTED,
         );
       });
 
@@ -121,7 +130,7 @@ export class NFCService {
         this.isConnected = false;
         this.onConnectionStatusChangedCallback?.(
           false,
-          `Serial port error: ${err.message}`,
+          `${ERROR_MESSAGES.CONNECTION_FAILED}: ${err.message}`,
         );
         // Try to reconnect after 5 seconds if not max retries
         if (this.connectionAttempts <= this.maxRetries) {
@@ -132,7 +141,10 @@ export class NFCService {
       this.port.on('close', () => {
         console.log('ESP32 disconnected');
         this.isConnected = false;
-        this.onConnectionStatusChangedCallback?.(false, 'ESP32 disconnected');
+        this.onConnectionStatusChangedCallback?.(
+          false,
+          ERROR_MESSAGES.ESP32_DISCONNECTED,
+        );
         // Try to reconnect after 5 seconds if not max retries
         if (this.connectionAttempts <= this.maxRetries) {
           setTimeout(() => this.initializeConnection(), this.retryInterval);
@@ -146,7 +158,7 @@ export class NFCService {
       console.error('Failed to connect to ESP32:', error);
       this.onConnectionStatusChangedCallback?.(
         false,
-        `Connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        `${ERROR_MESSAGES.CONNECTION_FAILED}: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
       if (this.connectionAttempts <= this.maxRetries) {
         setTimeout(() => this.initializeConnection(), this.retryInterval);
@@ -158,7 +170,7 @@ export class NFCService {
     console.log('Received from ESP32:', data);
 
     try {
-      if (data === 'TAG_REMOVED') {
+      if (data === SERIAL_COMMANDS.TAG_REMOVED) {
         this.onTagRemovedCallback?.();
         return;
       }
@@ -171,7 +183,7 @@ export class NFCService {
         this.onTagDetectedCallback?.(tagData);
         this.openFile(tagData.filePath);
       } else {
-        console.error('Invalid tag data structure:', tagData);
+        console.error(`${ERROR_MESSAGES.INVALID_TAG_DATA}:`, tagData);
       }
     } catch (error) {
       console.error('Failed to parse NFC tag data:', error);
@@ -185,7 +197,7 @@ export class NFCService {
         shell.openPath(filePath);
         console.log('Opened file:', filePath);
       } else {
-        console.error('File not found:', filePath);
+        console.error(`${ERROR_MESSAGES.FILE_NOT_FOUND}:`, filePath);
         // Try to open the directory containing the file
         const dir = path.dirname(filePath);
         if (fs.existsSync(dir)) {
