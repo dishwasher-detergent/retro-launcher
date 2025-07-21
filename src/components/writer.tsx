@@ -9,7 +9,6 @@ import { Preview } from "./ui/preview";
 export function Writer() {
   const [filePath, setFilePath] = useState("");
   const [name, setName] = useState("");
-  const [selectedIcon, setSelectedIcon] = useState("");
   const [iconData, setIconData] = useState<string>("");
   const [showOutput, setShowOutput] = useState(false);
   const [jsonOutput, setJsonOutput] = useState("");
@@ -38,17 +37,13 @@ export function Writer() {
         canvas.height = 16;
 
         if (ctx) {
-          // Enable image smoothing for better quality when scaling down
           ctx.imageSmoothingEnabled = true;
           ctx.imageSmoothingQuality = "high";
 
-          // Draw the image scaled to 16x16
           ctx.drawImage(img, 0, 0, 16, 16);
 
-          // Convert to base64
           const resizedDataUrl = canvas.toDataURL("image/png");
           setIconData(resizedDataUrl);
-          setSelectedIcon("custom");
         }
       };
       img.src = e.target?.result as string;
@@ -83,7 +78,7 @@ export function Writer() {
     }
   };
 
-  const canWrite = filePath && name && (selectedIcon || iconData);
+  const canWrite = filePath && name;
 
   return (
     <div className="space-y-4">
@@ -129,7 +124,7 @@ export function Writer() {
       </div>
       <div className="space-y-2">
         <Label htmlFor="icon-upload">
-          Upload Icon (will be resized to 16x16)
+          Upload Icon (optional - will be resized to 16x16)
         </Label>
         <div className="flex gap-2 items-center">
           <input

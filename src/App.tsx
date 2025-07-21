@@ -139,7 +139,7 @@ function App() {
       )}
 
       <h2 className="text-xl font-bold mb-2">Current Game</h2>
-      <div className="bg-muted rounded-lg p-2 mb-6">
+      <div className="bg-muted rounded-lg p-2 mb-6 border">
         {currentCard ? (
           <Preview
             name={currentCard.name}
@@ -154,7 +154,7 @@ function App() {
         )}
       </div>
       <h2 className="text-xl font-bold mb-2">Logs</h2>
-      <div className="bg-muted rounded-lg p-4 h-60 overflow-y-auto">
+      <div className="bg-muted rounded-lg p-4 h-60 overflow-y-auto border">
         {notifications.map((notification, index) => (
           <p key={index} className="text-sm text-muted-foreground">
             {notification}
