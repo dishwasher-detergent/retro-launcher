@@ -50,7 +50,7 @@ export function HomePage() {
 
   return (
     <>
-      <h2 className="text-xl font-bold mb-2">Current Game</h2>
+      <h1 className="text-2xl font-bold mb-4">Current Game</h1>
       <div className="bg-muted rounded-lg p-2 mb-6">
         {currentCard ? (
           <div className="flex items-start gap-4">

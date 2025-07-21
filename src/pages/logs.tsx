@@ -55,9 +55,9 @@ export function LogsPage() {
   };
 
   return (
-    <div className="space-y-4">
+    <>
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">System Logs</h1>
+        <h1 className="text-2xl font-bold mb-4">System Logs</h1>
         <Button variant="secondary" onClick={clearLogs}>
           <LucideBrushCleaning />
           Clear Logs
@@ -84,6 +84,6 @@ export function LogsPage() {
       <div className="text-xs text-muted-foreground">
         <p>System events are automatically logged here.</p>
       </div>
-    </div>
+    </>
   );
 }
