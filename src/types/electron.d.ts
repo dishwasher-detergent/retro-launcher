@@ -51,6 +51,12 @@ declare global {
       onLaunchError: (callback: (data: LaunchError) => void) => void;
       removeAllListeners: (channel: string) => void;
     };
+    windowAPI: {
+      minimize: () => Promise<{ success: boolean }>;
+      maximize: () => Promise<{ success: boolean }>;
+      close: () => Promise<{ success: boolean }>;
+      isMaximized: () => Promise<boolean>;
+    };
   }
 }
 

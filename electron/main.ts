@@ -41,6 +41,8 @@ function createWindow() {
     minWidth: 600,
     minHeight: 550,
     show: true,
+    frame: false,
+    titleBarStyle: "hiddenInset",
     webPreferences: {
       preload: path.join(__dirname, "preload.mjs"),
       nodeIntegration: false,
@@ -188,6 +190,39 @@ function setupIPCHandlers() {
       win.hide();
     }
     return { success: true };
+  });
+
+  // Window control handlers
+  ipcMain.handle("window-minimize", () => {
+    if (win) {
+      win.minimize();
+    }
+    return { success: true };
+  });
+
+  ipcMain.handle("window-maximize", () => {
+    if (win) {
+      if (win.isMaximized()) {
+        win.unmaximize();
+      } else {
+        win.maximize();
+      }
+    }
+    return { success: true };
+  });
+
+  ipcMain.handle("window-close", () => {
+    if (win) {
+      win.close();
+    }
+    return { success: true };
+  });
+
+  ipcMain.handle("window-is-maximized", () => {
+    if (win) {
+      return win.isMaximized();
+    }
+    return false;
   });
 }
 

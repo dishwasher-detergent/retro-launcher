@@ -125,3 +125,12 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Electron title bar drag regions */
+.drag-region {
+  -webkit-app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}
