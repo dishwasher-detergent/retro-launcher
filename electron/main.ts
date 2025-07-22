@@ -35,7 +35,7 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
 
 function createWindow() {
   win = new BrowserWindow({
-    icon: path.join(process.env.VITE_PUBLIC, "electron-vite.svg"),
+    icon: path.join(process.env.VITE_PUBLIC, "Web/icon-48x48.png"),
     width: 600,
     height: 550,
     minWidth: 600,

@@ -99,7 +99,7 @@ export class TrayService {
       },
       { type: "separator" },
       {
-        label: `${TRAY_MENU_LABELS.NFC_STATUS}: ${
+        label: `${TRAY_MENU_LABELS.DEVICE_STATUS}: ${
           this.isNFCConnected ? "Connected" : "Disconnected"
         }`,
         enabled: false,
@@ -179,5 +179,37 @@ export class TrayService {
    */
   public getTray(): Tray | null {
     return this.tray;
+  }
+
+  /**
+   * Create a fallback icon when the main icon fails to load
+   */
+  private createFallbackIcon(): Electron.NativeImage {
+    // Try alternative icon paths
+    const fallbackPaths = [
+      "Web/favicon-16x16.png",
+      "Web/favicon-32x32.png",
+      "Web/icon-48x48.png",
+    ];
+
+    for (const fallbackPath of fallbackPaths) {
+      try {
+        const iconPath = path.join(process.env.VITE_PUBLIC || "", fallbackPath);
+        console.log("Trying fallback icon:", iconPath);
+        const icon = nativeImage.createFromPath(iconPath);
+        if (!icon.isEmpty()) {
+          console.log("Successfully loaded fallback icon:", fallbackPath);
+          return icon;
+        }
+      } catch (error) {
+        console.log("Fallback icon failed:", fallbackPath, error);
+      }
+    }
+
+    // If all else fails, create a simple programmatic icon
+    console.log("Creating programmatic fallback icon");
+    return nativeImage.createFromDataURL(
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAAdgAAAHYBTnsmCAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAFYSURBVDiNpZM9SwNBEIafgwQLwcJCG1sLwcJCG9vYaGOjjY1tbLSx0cZGGxtb7S/wB1jY2GhjY6ONjTY22thoY6ONjY02NtrYaGOjjY02NtrYaGOjjY02NtrYaGOjjY1/gQ8YmJmdZ2Z2ZgL8c8Q5RymlACillFJKKaWUUkoppZRSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkop9Q/4BuF+XqHgd3sGAAAAAElFTkSuQmCC"
+    );
   }
 }
