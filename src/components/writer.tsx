@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
+import { Preview } from "@/components/preview";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -14,7 +15,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Preview } from "@/components/ui/preview";
 import { NFCCardData } from "@/types/electron";
 
 const CartridgeSchema = z.object({
@@ -108,8 +108,6 @@ export function Writer() {
     }
   };
 
-  const canWrite = watchedValues.name && watchedValues.pathName;
-
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -118,7 +116,7 @@ export function Writer() {
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Name *</FormLabel>
+              <FormLabel>Name</FormLabel>
               <FormControl>
                 <Input
                   placeholder="Enter a name for this cartridge..."
@@ -130,13 +128,12 @@ export function Writer() {
             </FormItem>
           )}
         />
-
         <FormField
           control={form.control}
           name="pathName"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Application Path *</FormLabel>
+              <FormLabel>Application Path</FormLabel>
               <div className="flex gap-2">
                 <FormControl>
                   <Input
@@ -165,7 +162,6 @@ export function Writer() {
             </FormItem>
           )}
         />
-
         <FormItem>
           <FormLabel>
             Upload Icon (optional - will be resized to 16x16)
@@ -198,25 +194,28 @@ export function Writer() {
             )}
           </div>
         </FormItem>
-
-        {canWrite && (
-          <FormItem>
-            <FormLabel>Preview</FormLabel>
-            <div className="bg-background p-2 rounded-lg">
-              <Preview
-                name={watchedValues.name}
-                icon={watchedValues.icon}
-                pathName={watchedValues.pathName}
-              />
-            </div>
-          </FormItem>
-        )}
-
-        <Button type="submit" disabled={!canWrite} className="w-full">
+        <FormItem>
+          <FormLabel>Preview</FormLabel>
+          <div className="bg-background p-2 rounded-lg grid place-items-center">
+            <Preview
+              name={watchedValues.name}
+              icon={watchedValues.icon}
+              pathName={watchedValues.pathName}
+            />
+          </div>
+        </FormItem>
+        <Button
+          type="submit"
+          disabled={
+            form.formState.isSubmitting ||
+            !form.formState.isValid ||
+            !form.formState.isDirty
+          }
+          className="w-full"
+        >
           <Zap className="h-4 w-4 mr-2" />
           Generate Cartridge Data
         </Button>
-
         {showOutput && (
           <FormItem>
             <FormLabel>Generated JSON Data</FormLabel>

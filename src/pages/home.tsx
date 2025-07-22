@@ -1,3 +1,4 @@
+import { Preview } from "@/components/preview";
 import { useEffect, useState } from "react";
 import { NFCCardData } from "../types/electron";
 
@@ -51,35 +52,19 @@ export function HomePage() {
   return (
     <>
       <h1 className="text-2xl font-bold mb-4">Current Game</h1>
-      <div className="bg-muted rounded-lg p-2 mb-6">
+      <div>
         {currentCard ? (
-          <div className="flex items-start gap-4">
-            {currentCard.icon && (
-              <div className="size-16 bg-primary rounded-lg grid place-items-center">
-                <img
-                  src={currentCard.icon}
-                  alt={currentCard.name}
-                  className="w-12 h-12 object-contain"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.style.display = "none";
-                  }}
-                />
-                <span className="text-2xl">🎮</span>
-              </div>
-            )}
-            <div>
-              <h3 className="text-lg font-bold">{currentCard.name}</h3>
-              <p className="text-muted-foreground text-sm">
-                {currentCard.pathName}
-              </p>
-            </div>
-          </div>
+          <Preview
+            name={currentCard.name}
+            icon={currentCard.icon || null}
+            pathName={currentCard.pathName}
+          />
         ) : (
-          <div className="text-center p-2 text-muted-foreground">
-            <p className="font-semibold">No cartridge detected</p>
-            <p className="text-sm">Place a cartridge in the reader.</p>
-          </div>
+          // <div className="text-center p-2 text-muted-foreground">
+          //   <p className="font-semibold">No cartridge detected</p>
+          //   <p className="text-sm">Place a cartridge in the reader.</p>
+          // </div>
+          <Preview name={"Kenny Bass"} icon={null} pathName={"test"} />
         )}
       </div>
     </>

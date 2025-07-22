@@ -58,13 +58,15 @@ export function LogsPage() {
     <>
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold mb-4">System Logs</h1>
-        <Button variant="secondary" onClick={clearLogs}>
+        <Button variant="secondary" size="sm" onClick={clearLogs}>
           <LucideBrushCleaning />
           Clear Logs
         </Button>
       </div>
-
-      <div className="bg-muted rounded-lg p-4 h-96 overflow-y-auto">
+      <p className="mb-4 text-sm">
+        System events are automatically logged here.
+      </p>
+      <div className="bg-muted rounded-lg p-4 max-h-96 overflow-y-auto">
         {notifications.map((notification, index) => (
           <p
             key={index}
@@ -79,10 +81,6 @@ export function LogsPage() {
             events.
           </p>
         )}
-      </div>
-
-      <div className="text-xs text-muted-foreground">
-        <p>System events are automatically logged here.</p>
       </div>
     </>
   );

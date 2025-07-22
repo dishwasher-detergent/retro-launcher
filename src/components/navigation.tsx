@@ -36,16 +36,17 @@ export function Navigation() {
               const Icon = item.icon;
 
               return (
-                <Link key={item.path} to={item.path} className="no-drag">
-                  <Button
-                    variant={isActive ? "secondary" : "ghost"}
-                    size="sm"
-                    className="h-6 text-xs flex items-center gap-1 rounded-sm"
-                  >
+                <Button
+                  variant={isActive ? "secondary" : "ghost"}
+                  size="sm"
+                  className="h-6 text-xs rounded-sm"
+                  asChild
+                >
+                  <Link key={item.path} to={item.path} className="no-drag">
                     <Icon className="size-3" />
                     {item.label}
-                  </Button>
-                </Link>
+                  </Link>
+                </Button>
               );
             })}
           </div>

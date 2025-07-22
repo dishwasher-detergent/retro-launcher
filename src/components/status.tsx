@@ -44,23 +44,24 @@ export function NFCStatusIndicator() {
   };
 
   return (
-    <div className="flex flex-row gap-1 items-center no-drag">
-      <div
-        className={`h-2 w-2 rounded-full animate-pulse ${
-          nfcStatus.connected ? "bg-emerald-600" : "bg-destructive"
-        }`}
-      />
-      <p className="font-semibold text-xs">
-        {nfcStatus.connected ? "Connected" : "Disconnected"}
-      </p>
-      {!nfcStatus.connected && (
+    <div className="no-drag h-full flex items-center">
+      {nfcStatus.connected ? (
+        <div className="flex flex-row gap-1 items-center no-drag">
+          <div className="size-2 rounded-full animate-pulse bg-emerald-600" />
+          <p className="font-semibold text-xs text-foreground">
+            {nfcStatus.connected ? "Connected" : "Disconnected"}
+          </p>
+        </div>
+      ) : (
         <Button
           variant="ghost"
           size="sm"
-          className="h-6 w-6 p-0 hover:bg-muted rounded-sm"
           onClick={handleReconnect}
-          title="Reconnect NFC"
+          title="Reconnect"
+          className="h-6"
         >
+          <div className="size-2 rounded-full animate-pulse bg-destructive" />
+          Disconnected
           <LucideRefreshCw className="size-3" />
         </Button>
       )}

@@ -6,11 +6,8 @@ interface NFCCardPreviewProps {
 
 export function Preview({ name, icon }: NFCCardPreviewProps) {
   return (
-    <div className="relative w-80 p-8">
+    <div className="relative w-72">
       <div className="relative">
-        <div className="absolute inset-0 bg-black/40 rounded-xl transform translate-x-3 translate-y-6 blur-xl"></div>
-        <div className="absolute inset-0 bg-black/25 rounded-xl transform translate-x-1.5 translate-y-3 blur-lg"></div>
-        <div className="absolute inset-0 bg-black/15 rounded-xl transform translate-x-0.5 translate-y-1 blur-md"></div>
         <div className="relative pt-6 bg-gradient-to-br from-slate-200 via-slate-250 to-slate-300 shadow-2xl rounded-xl border border-slate-300/80 overflow-hidden">
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-white/40 to-transparent"></div>
           <div className="absolute bottom-0 left-0 w-6 bg-gradient-to-t from-slate-500/60 to-slate-400/40 shadow-inner rounded-tr-lg h-1/2"></div>
@@ -30,7 +27,7 @@ export function Preview({ name, icon }: NFCCardPreviewProps) {
               <div className="absolute inset-0 rounded-full shadow-[inset_0_2px_4px_rgba(0,0,0,0.3)]"></div>
               <div className="relative flex flex-col items-center justify-center">
                 <div className="flex items-center space-x-1.5">
-                  <p className="text-slate-200 font-black italic tracking-[0.2em] drop-shadow-lg text-sm">
+                  <p className="text-slate-200 font-black tracking-[0.1em] drop-shadow-lg text-sm">
                     RETRO LAUNCHER
                   </p>
                 </div>
