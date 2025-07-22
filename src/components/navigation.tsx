@@ -27,7 +27,7 @@ export function Navigation() {
   ];
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 h-8 bg-background border-b flex items-center p-1 drag-region">
+    <nav className="flex-none h-8 bg-background border-b flex items-center p-1 drag-region">
       <div className="flex items-center justify-between w-full">
         <div className="flex items-center space-x-3">
           <div className="flex items-center space-x-1">
