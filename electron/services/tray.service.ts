@@ -46,7 +46,7 @@ export class TrayService {
 
     // Set up double-click handler to show window
     this.tray.on("double-click", () => {
-      this.menuOptions.showWindow();
+      this.menuOptions.navigateToHome();
     });
 
     this.updateTrayMenu();
@@ -81,8 +81,21 @@ export class TrayService {
 
     const contextMenu = Menu.buildFromTemplate([
       {
-        label: TRAY_MENU_LABELS.SHOW,
-        click: () => this.menuOptions.showWindow(),
+        label: "Navigate to...",
+        submenu: [
+          {
+            label: TRAY_MENU_LABELS.HOME,
+            click: () => this.menuOptions.navigateToHome(),
+          },
+          {
+            label: TRAY_MENU_LABELS.WRITER,
+            click: () => this.menuOptions.navigateToWriter(),
+          },
+          {
+            label: TRAY_MENU_LABELS.LOGS,
+            click: () => this.menuOptions.navigateToLogs(),
+          },
+        ],
       },
       { type: "separator" },
       {

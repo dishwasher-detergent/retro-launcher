@@ -4,9 +4,11 @@ export const TRAY_ICON_PATH = "electron-vite.svg";
 
 // Tray Menu Labels
 export const TRAY_MENU_LABELS = {
-  SHOW: "Show Retro Launcher",
+  HOME: "Go to Home",
+  WRITER: "Go to Create Cartridge",
+  LOGS: "Go to Logs",
   QUIT: "Quit",
   NFC_STATUS: "NFC Status",
-  CURRENT_CARD: "Current Card",
-  RECONNECT: "Reconnect ESP32",
+  CURRENT_CARD: "Current Cartridge",
+  RECONNECT: "Reconnect",
 } as const;

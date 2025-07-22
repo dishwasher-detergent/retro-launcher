@@ -1,72 +1,25 @@
 import { Button } from "@/components/ui/button";
 import { LucideBrushCleaning } from "lucide-react";
-import { useEffect, useState } from "react";
-import {
-  ApplicationEvent,
-  LaunchError,
-  NFCCardData,
-  NFCStatus,
-} from "../types/electron";
+import { useLogsContext } from "../contexts/logs-context";
 
 export function LogsPage() {
-  const [notifications, setNotifications] = useState<string[]>([]);
-
-  useEffect(() => {
-    if (window.nfcAPI) {
-      window.nfcAPI.onCardDetected((cardData: NFCCardData) => {
-        addNotification(`Card detected: ${cardData.name}`);
-      });
-
-      window.nfcAPI.onNFCStatusChange((status: NFCStatus) => {
-        console.log("NFC status changed:", status);
-        addNotification(
-          status.connected ? "NFC Connected" : "NFC Disconnected"
-        );
-      });
-
-      window.nfcAPI.onApplicationLaunched((data: ApplicationEvent) => {
-        addNotification(`Launched: ${data.pathName}`);
-      });
-
-      window.nfcAPI.onLaunchError((data: LaunchError) => {
-        addNotification(`Launch failed: ${data.pathName} - ${data.error}`);
-      });
-    }
-
-    return () => {
-      // Cleanup listeners
-      if (window.nfcAPI) {
-        window.nfcAPI.removeAllListeners("nfc-card-data");
-        window.nfcAPI.removeAllListeners("nfc-status");
-        window.nfcAPI.removeAllListeners("application-launched");
-        window.nfcAPI.removeAllListeners("launch-error");
-      }
-    };
-  }, []);
-
-  const addNotification = (message: string) => {
-    const timestamp = new Date().toLocaleTimeString();
-    const timestampedMessage = `[${timestamp}] ${message}`;
-    setNotifications((prev) => [timestampedMessage, ...prev]);
-  };
-
-  const clearLogs = () => {
-    setNotifications([]);
-  };
+  const { notifications, clearLogs } = useLogsContext();
 
   return (
     <>
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold mb-4">System Logs</h1>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h1 className="text-2xl font-bold">System Logs</h1>
+          <p className="text-sm text-muted-foreground">
+            System events are automatically logged here.
+          </p>
+        </div>
         <Button variant="secondary" size="sm" onClick={clearLogs}>
           <LucideBrushCleaning />
           Clear Logs
         </Button>
       </div>
-      <p className="mb-4 text-sm">
-        System events are automatically logged here.
-      </p>
-      <div className="bg-muted rounded-lg p-4 max-h-96 overflow-y-auto">
+      <div className="bg-muted rounded-lg p-4 max-h-96 overflow-y-auto border">
         {notifications.map((notification, index) => (
           <p
             key={index}
@@ -76,7 +29,7 @@ export function LogsPage() {
           </p>
         ))}
         {notifications.length === 0 && (
-          <p className="text-sm text-muted-foreground text-center py-8">
+          <p className="text-sm text-muted-foreground text-center">
             No log entries yet. Interact with the NFC reader to see system
             events.
           </p>

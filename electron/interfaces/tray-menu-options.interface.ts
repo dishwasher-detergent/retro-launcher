@@ -1,4 +1,6 @@
 export interface TrayMenuOptions {
-  showWindow: () => void;
   quitApp: () => void;
+  navigateToHome: () => void;
+  navigateToWriter: () => void;
+  navigateToLogs: () => void;
 }

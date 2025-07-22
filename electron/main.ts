@@ -140,15 +140,30 @@ function initializeServices() {
   });
 
   trayService = new TrayService(nfcService, {
-    showWindow: () => {
-      if (win) {
-        win.show();
-        win.focus();
-      }
-    },
     quitApp: () => {
       isQuiting = true;
       app.quit();
+    },
+    navigateToHome: () => {
+      if (win) {
+        win.show();
+        win.focus();
+        win.webContents.send("navigate-to", "/");
+      }
+    },
+    navigateToWriter: () => {
+      if (win) {
+        win.show();
+        win.focus();
+        win.webContents.send("navigate-to", "/writer");
+      }
+    },
+    navigateToLogs: () => {
+      if (win) {
+        win.show();
+        win.focus();
+        win.webContents.send("navigate-to", "/logs");
+      }
     },
   });
 
