@@ -51,7 +51,7 @@ export function Preview({ name, icon }: NFCCardPreviewProps) {
                       />
                     ) : (
                       <span className="text-green-400 text-2xl font-bold drop-shadow-lg filter brightness-110">
-                        GB
+                        RL
                       </span>
                     )}
                   </div>

@@ -58,7 +58,7 @@ export function NFCStatusIndicator() {
           size="sm"
           onClick={handleReconnect}
           title="Reconnect"
-          className="h-6"
+          className="h-6 text-xs"
         >
           <div className="size-2 rounded-full animate-pulse bg-destructive" />
           Disconnected

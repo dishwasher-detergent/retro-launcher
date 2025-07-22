@@ -192,6 +192,20 @@ function setupIPCHandlers() {
     return { success: true };
   });
 
+  // Extract icon from executable file
+  ipcMain.handle("extract-exe-icon", async (_, filePath: string) => {
+    try {
+      const icon = await app.getFileIcon(filePath, { size: "normal" });
+      const iconDataUrl = icon.toDataURL();
+      return { success: true, icon: iconDataUrl };
+    } catch (error) {
+      console.error("Failed to extract icon:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      return { success: false, error: errorMessage };
+    }
+  });
+
   // Window control handlers
   ipcMain.handle("window-minimize", () => {
     if (win) {

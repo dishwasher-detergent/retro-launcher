@@ -33,6 +33,11 @@ declare global {
         properties: string[];
         filters: { name: string; extensions: string[] }[];
       }) => Promise<{ canceled: boolean; filePaths: string[] }>;
+      extractExeIcon: (filePath: string) => Promise<{
+        success: boolean;
+        icon?: string;
+        error?: string;
+      }>;
     };
     nfcAPI: {
       getCurrentCard: () => Promise<NFCCardData | null>;

@@ -60,11 +60,10 @@ export function HomePage() {
             pathName={currentCard.pathName}
           />
         ) : (
-          // <div className="text-center p-2 text-muted-foreground">
-          //   <p className="font-semibold">No cartridge detected</p>
-          //   <p className="text-sm">Place a cartridge in the reader.</p>
-          // </div>
-          <Preview name={"Kenny Bass"} icon={null} pathName={"test"} />
+          <div className="text-center p-2 text-muted-foreground">
+            <p className="font-semibold">No cartridge detected</p>
+            <p className="text-sm">Place a cartridge in the reader.</p>
+          </div>
         )}
       </div>
     </>

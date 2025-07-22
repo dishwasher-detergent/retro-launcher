@@ -51,6 +51,12 @@ contextBridge.exposeInMainWorld("nfcAPI", {
   },
 });
 
+// Expose Electron file operations API
+contextBridge.exposeInMainWorld("electronAPI", {
+  extractExeIcon: (filePath: string) =>
+    ipcRenderer.invoke("extract-exe-icon", filePath),
+});
+
 // Expose window control API
 contextBridge.exposeInMainWorld("windowAPI", {
   minimize: () => ipcRenderer.invoke("window-minimize"),
