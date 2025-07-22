@@ -16,7 +16,7 @@ export function Navigation() {
     },
     {
       path: "/writer",
-      label: "Create Cartridge",
+      label: "New Cartridge",
       icon: Plus,
     },
     {

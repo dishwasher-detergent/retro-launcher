@@ -249,6 +249,7 @@ export function Writer() {
           <AlertTitle>Storage</AlertTitle>
           <AlertDescription>
             {sizeWarning || "Calculating..."}
+            <br />
             NFC215 cards have ~480 bytes of storage. Large icons or long paths
             may exceed this limit.
           </AlertDescription>
