@@ -12,7 +12,7 @@ void setup() {
 void loop() {
   if (Serial.available() > 0) {
     String command = Serial.readStringUntil('\n');
-    command.trim(); // Remove any whitespace/newlines
+    command.trim();
     
     if (command == "WHO_ARE_YOU") {
       Serial.println("RETRO_LAUNCHER");
