@@ -12,12 +12,10 @@ export interface DeviceInfo {
 export class DeviceDetectionService extends EventEmitter {
   private detectedDevices: Map<string, DeviceInfo> = new Map();
   private pollingInterval: NodeJS.Timeout | null = null;
-  private readonly POLLING_INTERVAL_MS = 2000; // Check every 2 seconds
+  private readonly POLLING_INTERVAL_MS = 2000;
 
-  // Your custom device identifier - change this to match your device's response
   private readonly CUSTOM_DEVICE_ID = "RETRO_LAUNCHER";
 
-  // Common microcontroller vendor IDs and product IDs
   private readonly DEVICE_IDENTIFIERS = [
     { vendorId: "10c4", productId: "ea60" }, // Silicon Labs CP210x (common USB-to-UART)
     { vendorId: "1a86", productId: "7523" }, // QinHeng Electronics CH340
@@ -82,7 +80,6 @@ export class DeviceDetectionService extends EventEmitter {
 
       for (const port of ports) {
         if (this.isTargetDevice(port)) {
-          // Validate the device with custom identifier
           const isValidDevice = await this.validateCustomDevice(port.path);
 
           if (isValidDevice) {
@@ -105,7 +102,6 @@ export class DeviceDetectionService extends EventEmitter {
         }
       }
 
-      // Check for disconnected devices
       const disconnectedDevices: string[] = [];
       for (const [path, deviceInfo] of this.detectedDevices.entries()) {
         if (!currentDevicePaths.has(path)) {
@@ -115,7 +111,6 @@ export class DeviceDetectionService extends EventEmitter {
         }
       }
 
-      // Remove disconnected devices
       disconnectedDevices.forEach((path) => {
         this.detectedDevices.delete(path);
       });
@@ -145,7 +140,6 @@ export class DeviceDetectionService extends EventEmitter {
       }
     }
 
-    // Check manufacturer names that commonly indicate development boards
     const deviceManufacturers = [
       "silicon labs",
       "silabser",
@@ -217,7 +211,6 @@ export class DeviceDetectionService extends EventEmitter {
    * Attempt to communicate with a device to verify it's responsive
    */
   public async testDeviceConnection(devicePath: string): Promise<boolean> {
-    // Use the custom validation method for testing as well
     return this.validateCustomDevice(devicePath);
   }
 

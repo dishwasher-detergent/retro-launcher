@@ -125,16 +125,25 @@ function initializeServices() {
 
   deviceDetectionService = new DeviceDetectionService();
 
+  const initialDeviceCount = deviceDetectionService.getDetectedDevices().length;
+  trayService.updateDeviceStatus(initialDeviceCount);
+
   deviceDetectionService.on("deviceConnected", (deviceInfo: DeviceInfo) => {
     if (win) {
       win.webContents.send("device-connected", deviceInfo);
     }
+
+    const deviceCount = deviceDetectionService.getDetectedDevices().length;
+    trayService.updateDeviceStatus(deviceCount);
   });
 
   deviceDetectionService.on("deviceDisconnected", (deviceInfo: DeviceInfo) => {
     if (win) {
       win.webContents.send("device-disconnected", deviceInfo);
     }
+
+    const deviceCount = deviceDetectionService.getDetectedDevices().length;
+    trayService.updateDeviceStatus(deviceCount);
   });
 
   deviceDetectionService.on("scanError", (error: any) => {

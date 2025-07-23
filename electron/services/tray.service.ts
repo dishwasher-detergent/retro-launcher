@@ -11,6 +11,8 @@ import { TrayMenuOptions } from "../interfaces/tray-menu-options.interface";
 export class TrayService {
   private tray: Tray | null = null;
   private menuOptions: TrayMenuOptions;
+  private isDeviceConnected: boolean = false;
+  private connectedDeviceCount: number = 0;
 
   constructor(menuOptions: TrayMenuOptions) {
     this.menuOptions = menuOptions;
@@ -22,12 +24,10 @@ export class TrayService {
   public initializeTray(iconBasePath: string): void {
     const iconPath = path.join(iconBasePath, TRAY_ICON_PATH);
 
-    // Create tray icon
     let trayIcon: Electron.NativeImage;
     try {
       trayIcon = nativeImage.createFromPath(iconPath);
       if (trayIcon.isEmpty()) {
-        // Fallback to a simple icon if file doesn't exist
         trayIcon = nativeImage.createEmpty();
       }
     } catch (error) {
@@ -36,9 +36,8 @@ export class TrayService {
     }
 
     this.tray = new Tray(trayIcon);
-    this.tray.setToolTip(TRAY_TOOLTIP);
+    this.updateTrayTooltip();
 
-    // Set up double-click handler to show window
     this.tray.on("double-click", () => {
       this.menuOptions.navigateToHome();
     });
@@ -52,7 +51,16 @@ export class TrayService {
   private updateTrayMenu(): void {
     if (!this.tray) return;
 
+    const deviceStatusLabel = this.isDeviceConnected
+      ? `🟢 Connected`
+      : "❌ Disconnected";
+
     const contextMenu = Menu.buildFromTemplate([
+      {
+        label: deviceStatusLabel,
+        enabled: false,
+      },
+      { type: "separator" },
       {
         label: "Navigate to...",
         submenu: [
@@ -78,6 +86,30 @@ export class TrayService {
     ]);
 
     this.tray.setContextMenu(contextMenu);
+  }
+
+  /**
+   * Update tray tooltip with device status
+   */
+  private updateTrayTooltip(): void {
+    if (!this.tray) return;
+
+    const tooltip = this.isDeviceConnected
+      ? `${TRAY_TOOLTIP} - ${this.connectedDeviceCount} device(s) connected`
+      : `${TRAY_TOOLTIP} - No devices connected`;
+
+    this.tray.setToolTip(tooltip);
+  }
+
+  /**
+   * Update device connection status
+   */
+  public updateDeviceStatus(connectedDeviceCount: number): void {
+    this.connectedDeviceCount = connectedDeviceCount;
+    this.isDeviceConnected = connectedDeviceCount > 0;
+
+    this.updateTrayTooltip();
+    this.updateTrayMenu();
   }
 
   /**
