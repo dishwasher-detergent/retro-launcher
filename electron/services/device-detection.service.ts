@@ -1,7 +1,7 @@
 import { EventEmitter } from "events";
 import { SerialPort } from "serialport";
 
-export interface ESP32DeviceInfo {
+export interface DeviceInfo {
   path: string;
   manufacturer?: string;
   serialNumber?: string;
@@ -9,8 +9,8 @@ export interface ESP32DeviceInfo {
   productId?: string;
 }
 
-export class ESP32DetectionService extends EventEmitter {
-  private detectedDevices: Map<string, ESP32DeviceInfo> = new Map();
+export class DeviceDetectionService extends EventEmitter {
+  private detectedDevices: Map<string, DeviceInfo> = new Map();
   private pollingInterval: NodeJS.Timeout | null = null;
   private readonly POLLING_INTERVAL_MS = 2000; // Check every 2 seconds
 
@@ -36,7 +36,7 @@ export class ESP32DetectionService extends EventEmitter {
       return; // Already polling
     }
 
-    console.log("ESP32 Detection Service: Starting device polling...");
+    console.log("Device Detection Service: Starting device polling...");
     this.scanForDevices(); // Initial scan
 
     this.pollingInterval = setInterval(() => {
@@ -51,14 +51,14 @@ export class ESP32DetectionService extends EventEmitter {
     if (this.pollingInterval) {
       clearInterval(this.pollingInterval);
       this.pollingInterval = null;
-      console.log("ESP32 Detection Service: Stopped device polling");
+      console.log("Device Detection Service: Stopped device polling");
     }
   }
 
   /**
    * Get currently detected ESP32 devices
    */
-  public getDetectedDevices(): ESP32DeviceInfo[] {
+  public getDetectedDevices(): DeviceInfo[] {
     return Array.from(this.detectedDevices.values());
   }
 
@@ -83,7 +83,7 @@ export class ESP32DetectionService extends EventEmitter {
 
           if (!this.detectedDevices.has(port.path)) {
             // New ESP32 device detected
-            const deviceInfo: ESP32DeviceInfo = {
+            const deviceInfo: DeviceInfo = {
               path: port.path,
               manufacturer: port.manufacturer,
               serialNumber: port.serialNumber,
@@ -92,7 +92,7 @@ export class ESP32DetectionService extends EventEmitter {
             };
 
             this.detectedDevices.set(port.path, deviceInfo);
-            console.log(`ESP32 device connected: ${port.path}`);
+            console.log(`Device connected: ${port.path}`);
             this.emit("deviceConnected", deviceInfo);
           }
         }
@@ -103,7 +103,7 @@ export class ESP32DetectionService extends EventEmitter {
       for (const [path, deviceInfo] of this.detectedDevices.entries()) {
         if (!currentDevicePaths.has(path)) {
           disconnectedDevices.push(path);
-          console.log(`ESP32 device disconnected: ${path}`);
+          console.log(`Device disconnected: ${path}`);
           this.emit("deviceDisconnected", deviceInfo);
         }
       }
@@ -113,7 +113,7 @@ export class ESP32DetectionService extends EventEmitter {
         this.detectedDevices.delete(path);
       });
     } catch (error) {
-      console.error("Error scanning for ESP32 devices:", error);
+      console.error("Error scanning for devices:", error);
       this.emit("scanError", error);
     }
   }

@@ -47,24 +47,7 @@ declare global {
         error?: string;
       }>;
     };
-    nfcAPI: {
-      getCurrentCard: () => Promise<NFCCardData | null>;
-      getNFCStatus: () => Promise<NFCStatus>;
-      reconnectNFC: () => Promise<{ success: boolean }>;
-      sendCommand: (command: string) => Promise<{ success: boolean }>;
-      writeNFCCard: (
-        cardData: NFCCardData
-      ) => Promise<{ success: boolean; error?: string }>;
-      hideToTray: () => Promise<{ success: boolean }>;
-      onCardDetected: (callback: (cardData: NFCCardData) => void) => void;
-      onNFCStatusChange: (callback: (status: NFCStatus) => void) => void;
-      onApplicationLaunched: (
-        callback: (data: ApplicationEvent) => void
-      ) => void;
-      onLaunchError: (callback: (data: LaunchError) => void) => void;
-      removeAllListeners: (channel: string) => void;
-    };
-    esp32API: {
+    deviceApi: {
       getDevices: () => Promise<ESP32DeviceInfo[]>;
       hasDevices: () => Promise<boolean>;
       testDevice: (devicePath: string) => Promise<{

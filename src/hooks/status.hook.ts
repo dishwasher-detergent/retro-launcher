@@ -15,24 +15,24 @@ export function useStatus(): Status {
   const [testingDevice, setTestingDevice] = useState<string | null>(null);
 
   useEffect(() => {
-    const initializeESP32Status = async () => {
-      if (window.esp32API) {
+    const initializeDeviceStatus = async () => {
+      if (window.deviceApi) {
         try {
-          const devices = await window.esp32API.getDevices();
+          const devices = await window.deviceApi.getDevices();
           setDevices(devices);
         } catch (error) {
-          console.error("Failed to get ESP32 devices:", error);
+          console.error("Failed to get devices:", error);
         } finally {
           setIsLoading(false);
         }
       }
     };
 
-    initializeESP32Status();
+    initializeDeviceStatus();
 
-    if (window.esp32API) {
+    if (window.deviceApi) {
       // Set up event listeners
-      window.esp32API.onDeviceConnected((device: ESP32DeviceInfo) => {
+      window.deviceApi.onDeviceConnected((device: ESP32DeviceInfo) => {
         setDevices((prev) => {
           const exists = prev.some((d) => d.path === device.path);
           if (!exists) {
@@ -42,30 +42,25 @@ export function useStatus(): Status {
         });
       });
 
-      window.esp32API.onDeviceDisconnected((device: ESP32DeviceInfo) => {
+      window.deviceApi.onDeviceDisconnected((device: ESP32DeviceInfo) => {
         setDevices((prev) => prev.filter((d) => d.path !== device.path));
-      });
-
-      window.esp32API.onScanError((error: any) => {
-        console.error("ESP32 scan error:", error);
       });
     }
 
     return () => {
-      if (window.esp32API) {
-        window.esp32API.removeAllListeners("esp32-device-connected");
-        window.esp32API.removeAllListeners("esp32-device-disconnected");
-        window.esp32API.removeAllListeners("esp32-scan-error");
+      if (window.deviceApi) {
+        window.deviceApi.removeAllListeners("device-connected");
+        window.deviceApi.removeAllListeners("device-disconnected");
       }
     };
   }, []);
 
   const handleTestDevice = async (devicePath: string): Promise<void> => {
-    if (!window.esp32API) return;
+    if (!window.deviceApi) return;
 
     setTestingDevice(devicePath);
     try {
-      const result = await window.esp32API.testDevice(devicePath);
+      const result = await window.deviceApi.testDevice(devicePath);
       if (result.success) {
         console.log(
           `Device ${devicePath} test result:`,
@@ -82,11 +77,11 @@ export function useStatus(): Status {
   };
 
   const handleRefreshDevices = async (): Promise<void> => {
-    if (!window.esp32API) return;
+    if (!window.deviceApi) return;
 
     setIsLoading(true);
     try {
-      const devices = await window.esp32API.getDevices();
+      const devices = await window.deviceApi.getDevices();
       setDevices(devices);
     } catch (error) {
       console.error("Failed to refresh devices:", error);

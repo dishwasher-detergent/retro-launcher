@@ -5,7 +5,7 @@ import { useLogsContext } from "../contexts/logs-context";
 
 export function LogsPage() {
   const { devices } = useStatus();
-  const { notifications, clearLogs } = useLogsContext();
+  const { logs, clearLogs } = useLogsContext();
 
   return (
     <>
@@ -22,17 +22,17 @@ export function LogsPage() {
         </Button>
       </div>
       <div className="bg-muted rounded-lg p-4 max-h-96 overflow-y-auto border">
-        {notifications.map((notification, index) => (
+        {logs.map((log, index) => (
           <p
             key={index}
             className="text-sm text-muted-foreground font-mono mb-1"
           >
-            {notification}
+            {log}
           </p>
         ))}
-        {notifications.length === 0 && (
+        {logs.length === 0 && (
           <p className="text-sm text-muted-foreground text-center">
-            No log entries yet. Interact with the NFC reader to see system
+            No log entries yet. Connect or interact with devices to see system
             events.
           </p>
         )}

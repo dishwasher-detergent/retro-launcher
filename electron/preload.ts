@@ -36,28 +36,24 @@ contextBridge.exposeInMainWorld("windowAPI", {
   isMaximized: () => ipcRenderer.invoke("window-is-maximized"),
 });
 
-// Expose ESP32 device detection API
-contextBridge.exposeInMainWorld("esp32API", {
-  getDevices: () => ipcRenderer.invoke("esp32-get-devices"),
-  hasDevices: () => ipcRenderer.invoke("esp32-has-devices"),
+// Expose device detection API
+contextBridge.exposeInMainWorld("deviceApi", {
+  getDevices: () => ipcRenderer.invoke("get-devices"),
+  hasDevices: () => ipcRenderer.invoke("has-devices"),
   testDevice: (devicePath: string) =>
-    ipcRenderer.invoke("esp32-test-device", devicePath),
-  startPolling: () => ipcRenderer.invoke("esp32-start-polling"),
-  stopPolling: () => ipcRenderer.invoke("esp32-stop-polling"),
+    ipcRenderer.invoke("test-device", devicePath),
+  startPolling: () => ipcRenderer.invoke("start-polling"),
+  stopPolling: () => ipcRenderer.invoke("stop-polling"),
 
   // Event listeners
   onDeviceConnected: (callback: (device: any) => void) => {
-    ipcRenderer.on("esp32-device-connected", (_event, device) =>
-      callback(device)
-    );
+    ipcRenderer.on("device-connected", (_event, device) => callback(device));
   },
   onDeviceDisconnected: (callback: (device: any) => void) => {
-    ipcRenderer.on("esp32-device-disconnected", (_event, device) =>
-      callback(device)
-    );
+    ipcRenderer.on("device-disconnected", (_event, device) => callback(device));
   },
   onScanError: (callback: (error: any) => void) => {
-    ipcRenderer.on("esp32-scan-error", (_event, error) => callback(error));
+    ipcRenderer.on("device-scan-error", (_event, error) => callback(error));
   },
   removeAllListeners: (channel: string) => {
     ipcRenderer.removeAllListeners(channel);

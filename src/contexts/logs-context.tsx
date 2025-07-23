@@ -1,14 +1,9 @@
+import { ESP32DeviceInfo } from "@/types/electron";
 import React, { createContext, useContext, useEffect, useState } from "react";
-import {
-  ApplicationEvent,
-  LaunchError,
-  NFCCardData,
-  NFCStatus,
-} from "../types/electron";
 
 interface LogsContextType {
-  notifications: string[];
-  addNotification: (message: string) => void;
+  logs: string[];
+  addLogs: (message: string) => void;
   clearLogs: () => void;
 }
 
@@ -27,54 +22,58 @@ interface LogsProviderProps {
 }
 
 export const LogsProvider: React.FC<LogsProviderProps> = ({ children }) => {
-  const [notifications, setNotifications] = useState<string[]>([]);
+  const [logs, setlogs] = useState<string[]>([]);
 
-  const addNotification = (message: string) => {
+  const addLogs = (message: string) => {
     const timestamp = new Date().toLocaleTimeString();
     const timestampedMessage = `[${timestamp}] ${message}`;
-    setNotifications((prev) => [timestampedMessage, ...prev]);
+    setlogs((prev) => [timestampedMessage, ...prev]);
   };
 
   const clearLogs = () => {
-    setNotifications([]);
+    setlogs([]);
   };
 
   useEffect(() => {
-    if (window.nfcAPI) {
-      window.nfcAPI.onCardDetected((cardData: NFCCardData) => {
-        addNotification(`Card detected: ${cardData.name}`);
-      });
-
-      window.nfcAPI.onNFCStatusChange((status: NFCStatus) => {
-        console.log("NFC status changed:", status);
-        addNotification(
-          status.connected ? "NFC Connected" : "NFC Disconnected"
+    if (window.deviceApi) {
+      window.deviceApi.onDeviceConnected((device: ESP32DeviceInfo) => {
+        addLogs(
+          `Device connected: ${device.path}${
+            device.manufacturer ? ` (${device.manufacturer})` : ""
+          }`
         );
       });
 
-      window.nfcAPI.onApplicationLaunched((data: ApplicationEvent) => {
-        addNotification(`Launched: ${data.pathName}`);
+      window.deviceApi.onDeviceDisconnected((device: ESP32DeviceInfo) => {
+        addLogs(
+          `Device disconnected: ${device.path}${
+            device.manufacturer ? ` (${device.manufacturer})` : ""
+          }`
+        );
       });
 
-      window.nfcAPI.onLaunchError((data: LaunchError) => {
-        addNotification(`Launch failed: ${data.pathName} - ${data.error}`);
+      window.deviceApi.onScanError((error: any) => {
+        const errorMessage =
+          typeof error === "string"
+            ? error
+            : error.message || "Unknown scan error";
+        addLogs(`Device scan error: ${errorMessage}`);
       });
     }
 
     return () => {
       // Cleanup listeners
-      if (window.nfcAPI) {
-        window.nfcAPI.removeAllListeners("nfc-card-data");
-        window.nfcAPI.removeAllListeners("nfc-status");
-        window.nfcAPI.removeAllListeners("application-launched");
-        window.nfcAPI.removeAllListeners("launch-error");
+      if (window.deviceApi) {
+        window.deviceApi.removeAllListeners("device-connected");
+        window.deviceApi.removeAllListeners("device-disconnected");
+        window.deviceApi.removeAllListeners("device-scan-error");
       }
     };
   }, []);
 
   const value: LogsContextType = {
-    notifications,
-    addNotification,
+    logs,
+    addLogs,
     clearLogs,
   };
 
