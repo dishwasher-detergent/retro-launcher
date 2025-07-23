@@ -1,4 +1,4 @@
-import { ESP32DeviceInfo } from "@/types/electron";
+import { DeviceInfo } from "@/types/electron";
 import React, { createContext, useContext, useEffect, useState } from "react";
 
 interface LogsContextType {
@@ -36,7 +36,7 @@ export const LogsProvider: React.FC<LogsProviderProps> = ({ children }) => {
 
   useEffect(() => {
     if (window.deviceApi) {
-      window.deviceApi.onDeviceConnected((device: ESP32DeviceInfo) => {
+      window.deviceApi.onDeviceConnected((device: DeviceInfo) => {
         addLogs(
           `Device connected: ${device.path}${
             device.manufacturer ? ` (${device.manufacturer})` : ""
@@ -44,7 +44,7 @@ export const LogsProvider: React.FC<LogsProviderProps> = ({ children }) => {
         );
       });
 
-      window.deviceApi.onDeviceDisconnected((device: ESP32DeviceInfo) => {
+      window.deviceApi.onDeviceDisconnected((device: DeviceInfo) => {
         addLogs(
           `Device disconnected: ${device.path}${
             device.manufacturer ? ` (${device.manufacturer})` : ""

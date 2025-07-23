@@ -17,7 +17,7 @@ export interface LaunchError {
   error: string;
 }
 
-export interface ESP32DeviceInfo {
+export interface DeviceInfo {
   path: string;
   manufacturer?: string;
   serialNumber?: string;
@@ -48,7 +48,7 @@ declare global {
       }>;
     };
     deviceApi: {
-      getDevices: () => Promise<ESP32DeviceInfo[]>;
+      getDevices: () => Promise<DeviceInfo[]>;
       hasDevices: () => Promise<boolean>;
       testDevice: (devicePath: string) => Promise<{
         success: boolean;
@@ -57,10 +57,8 @@ declare global {
       }>;
       startPolling: () => Promise<{ success: boolean; error?: string }>;
       stopPolling: () => Promise<{ success: boolean; error?: string }>;
-      onDeviceConnected: (callback: (device: ESP32DeviceInfo) => void) => void;
-      onDeviceDisconnected: (
-        callback: (device: ESP32DeviceInfo) => void
-      ) => void;
+      onDeviceConnected: (callback: (device: DeviceInfo) => void) => void;
+      onDeviceDisconnected: (callback: (device: DeviceInfo) => void) => void;
       onScanError: (callback: (error: any) => void) => void;
       removeAllListeners: (channel: string) => void;
     };

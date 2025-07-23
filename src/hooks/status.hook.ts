@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { ESP32DeviceInfo } from "../types/electron";
+import { DeviceInfo } from "../types/electron";
 
 export interface Status {
-  devices: ESP32DeviceInfo[];
+  devices: DeviceInfo[];
   isLoading: boolean;
   testingDevice: string | null;
   handleTestDevice: (devicePath: string) => Promise<void>;
@@ -10,7 +10,7 @@ export interface Status {
 }
 
 export function useStatus(): Status {
-  const [devices, setDevices] = useState<ESP32DeviceInfo[]>([]);
+  const [devices, setDevices] = useState<DeviceInfo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [testingDevice, setTestingDevice] = useState<string | null>(null);
 
@@ -32,7 +32,7 @@ export function useStatus(): Status {
 
     if (window.deviceApi) {
       // Set up event listeners
-      window.deviceApi.onDeviceConnected((device: ESP32DeviceInfo) => {
+      window.deviceApi.onDeviceConnected((device: DeviceInfo) => {
         setDevices((prev) => {
           const exists = prev.some((d) => d.path === device.path);
           if (!exists) {
@@ -42,7 +42,7 @@ export function useStatus(): Status {
         });
       });
 
-      window.deviceApi.onDeviceDisconnected((device: ESP32DeviceInfo) => {
+      window.deviceApi.onDeviceDisconnected((device: DeviceInfo) => {
         setDevices((prev) => prev.filter((d) => d.path !== device.path));
       });
     }

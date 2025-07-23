@@ -14,11 +14,14 @@ export class DeviceDetectionService extends EventEmitter {
   private pollingInterval: NodeJS.Timeout | null = null;
   private readonly POLLING_INTERVAL_MS = 2000; // Check every 2 seconds
 
-  // Common ESP32 vendor IDs and product IDs
-  private readonly ESP32_IDENTIFIERS = [
-    { vendorId: "10c4", productId: "ea60" }, // Silicon Labs CP210x (common ESP32 USB-to-UART)
+  // Your custom device identifier - change this to match your device's response
+  private readonly CUSTOM_DEVICE_ID = "RETRO_LAUNCHER";
+
+  // Common microcontroller vendor IDs and product IDs
+  private readonly DEVICE_IDENTIFIERS = [
+    { vendorId: "10c4", productId: "ea60" }, // Silicon Labs CP210x (common USB-to-UART)
     { vendorId: "1a86", productId: "7523" }, // QinHeng Electronics CH340
-    { vendorId: "0403", productId: "6001" }, // FTDI FT232R (some ESP32 boards)
+    { vendorId: "0403", productId: "6001" }, // FTDI FT232R (some development boards)
     { vendorId: "0403", productId: "6010" }, // FTDI FT2232H
     { vendorId: "067b", productId: "2303" }, // Prolific PL2303
   ];
@@ -29,7 +32,7 @@ export class DeviceDetectionService extends EventEmitter {
   }
 
   /**
-   * Start polling for ESP32 devices
+   * Start polling for devices
    */
   public startPolling(): void {
     if (this.pollingInterval) {
@@ -45,7 +48,7 @@ export class DeviceDetectionService extends EventEmitter {
   }
 
   /**
-   * Stop polling for ESP32 devices
+   * Stop polling for devices
    */
   public stopPolling(): void {
     if (this.pollingInterval) {
@@ -56,21 +59,21 @@ export class DeviceDetectionService extends EventEmitter {
   }
 
   /**
-   * Get currently detected ESP32 devices
+   * Get currently detected devices
    */
   public getDetectedDevices(): DeviceInfo[] {
     return Array.from(this.detectedDevices.values());
   }
 
   /**
-   * Check if any ESP32 devices are currently connected
+   * Check if any devices are currently connected
    */
   public hasConnectedDevices(): boolean {
     return this.detectedDevices.size > 0;
   }
 
   /**
-   * Scan for ESP32 devices
+   * Scan for devices
    */
   private async scanForDevices(): Promise<void> {
     try {
@@ -78,22 +81,26 @@ export class DeviceDetectionService extends EventEmitter {
       const currentDevicePaths = new Set<string>();
 
       for (const port of ports) {
-        if (this.isESP32Device(port)) {
-          currentDevicePaths.add(port.path);
+        if (this.isTargetDevice(port)) {
+          // Validate the device with custom identifier
+          const isValidDevice = await this.validateCustomDevice(port.path);
 
-          if (!this.detectedDevices.has(port.path)) {
-            // New ESP32 device detected
-            const deviceInfo: DeviceInfo = {
-              path: port.path,
-              manufacturer: port.manufacturer,
-              serialNumber: port.serialNumber,
-              vendorId: port.vendorId,
-              productId: port.productId,
-            };
+          if (isValidDevice) {
+            currentDevicePaths.add(port.path);
 
-            this.detectedDevices.set(port.path, deviceInfo);
-            console.log(`Device connected: ${port.path}`);
-            this.emit("deviceConnected", deviceInfo);
+            if (!this.detectedDevices.has(port.path)) {
+              const deviceInfo: DeviceInfo = {
+                path: port.path,
+                manufacturer: port.manufacturer,
+                serialNumber: port.serialNumber,
+                vendorId: port.vendorId,
+                productId: port.productId,
+              };
+
+              this.detectedDevices.set(port.path, deviceInfo);
+              console.log(`Custom device connected: ${port.path}`);
+              this.emit("deviceConnected", deviceInfo);
+            }
           }
         }
       }
@@ -119,16 +126,16 @@ export class DeviceDetectionService extends EventEmitter {
   }
 
   /**
-   * Check if a serial port represents an ESP32 device
+   * Check if a serial port represents a target device
    */
-  private isESP32Device(port: any): boolean {
+  private isTargetDevice(port: any): boolean {
     const vendorId = port.vendorId?.toLowerCase();
     const productId = port.productId?.toLowerCase();
     const manufacturer = port.manufacturer?.toLowerCase() || "";
 
-    // Check against known ESP32 USB-to-UART chip identifiers
+    // Check against known microcontroller USB-to-UART chip identifiers
     if (vendorId && productId) {
-      const isKnownChip = this.ESP32_IDENTIFIERS.some(
+      const isKnownChip = this.DEVICE_IDENTIFIERS.some(
         (identifier) =>
           identifier.vendorId === vendorId && identifier.productId === productId
       );
@@ -138,8 +145,8 @@ export class DeviceDetectionService extends EventEmitter {
       }
     }
 
-    // Check manufacturer names that commonly indicate ESP32 boards
-    const esp32Manufacturers = [
+    // Check manufacturer names that commonly indicate development boards
+    const deviceManufacturers = [
       "silicon labs",
       "silabser",
       "cp210x",
@@ -147,16 +154,19 @@ export class DeviceDetectionService extends EventEmitter {
       "ch340",
       "ftdi",
       "espressif",
-      "esp32",
+      "arduino",
+      "microchip",
+      "atmel",
+      "nordic",
     ];
 
-    return esp32Manufacturers.some((name) => manufacturer.includes(name));
+    return deviceManufacturers.some((name) => manufacturer.includes(name));
   }
 
   /**
-   * Attempt to communicate with an ESP32 device to verify it's responsive
+   * Validate if a device responds with the custom identifier
    */
-  public async testDeviceConnection(devicePath: string): Promise<boolean> {
+  private async validateCustomDevice(devicePath: string): Promise<boolean> {
     return new Promise((resolve) => {
       try {
         const port = new SerialPort({
@@ -168,7 +178,7 @@ export class DeviceDetectionService extends EventEmitter {
         const timeout = setTimeout(() => {
           port.close();
           resolve(false);
-        }, 3000); // 3 second timeout
+        }, 5000);
 
         port.open((err) => {
           if (err) {
@@ -177,29 +187,38 @@ export class DeviceDetectionService extends EventEmitter {
             return;
           }
 
-          // Send a simple command to test communication
-          port.write("ping\n");
+          port.write("WHO_ARE_YOU\n");
 
-          const dataHandler = () => {
-            clearTimeout(timeout);
-            port.close();
-            // If we get any response, consider it successful
-            resolve(true);
+          const dataHandler = (data: Buffer) => {
+            const response = data.toString().trim();
+            console.log(`Device ${devicePath} responded: ${response}`);
+
+            if (response.includes(this.CUSTOM_DEVICE_ID)) {
+              clearTimeout(timeout);
+              port.close();
+              resolve(true);
+            }
           };
 
-          port.once("data", dataHandler);
+          port.on("data", dataHandler);
 
-          // Also consider it successful if we can open the port without errors
           setTimeout(() => {
-            clearTimeout(timeout);
-            port.close();
-            resolve(true);
-          }, 1000);
+            port.removeListener("data", dataHandler);
+          }, 4500);
         });
       } catch (error) {
+        console.error(`Error validating device ${devicePath}:`, error);
         resolve(false);
       }
     });
+  }
+
+  /**
+   * Attempt to communicate with a device to verify it's responsive
+   */
+  public async testDeviceConnection(devicePath: string): Promise<boolean> {
+    // Use the custom validation method for testing as well
+    return this.validateCustomDevice(devicePath);
   }
 
   /**
