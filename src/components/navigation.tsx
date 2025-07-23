@@ -1,7 +1,7 @@
 import { FileText, Home, Plus } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 
-import { NFCStatusIndicator } from "@/components/status";
+import { StatusIndicator } from "@/components/status";
 import { Button } from "@/components/ui/button";
 import { WindowControls } from "@/components/window-controls";
 
@@ -37,6 +37,7 @@ export function Navigation() {
 
               return (
                 <Button
+                  key={item.path}
                   variant={isActive ? "secondary" : "ghost"}
                   size="sm"
                   className="h-6 text-xs rounded-sm"
@@ -52,7 +53,7 @@ export function Navigation() {
           </div>
         </div>
         <div className="flex items-center space-x-3">
-          <NFCStatusIndicator />
+          <StatusIndicator />
           <WindowControls />
         </div>
       </div>

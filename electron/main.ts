@@ -1,16 +1,15 @@
 import { app, BrowserWindow, globalShortcut, ipcMain, Menu } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { NFCCardData } from "./interfaces/nfc-card-data.interface";
-import { NFCService } from "./services/nfc.service";
+import { ESP32DetectionService, ESP32DeviceInfo } from "./services/index";
 import { TrayService } from "./services/tray.service";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Global variables
 let win: BrowserWindow | null;
-let nfcService: NFCService;
 let trayService: TrayService;
+let esp32DetectionService: ESP32DetectionService;
 let isQuiting = false;
 
 // The built directory structure
@@ -52,10 +51,6 @@ function createWindow() {
 
   win.webContents.on("did-finish-load", () => {
     win?.webContents.send("main-process-message", new Date().toLocaleString());
-    const currentCard = nfcService.getCurrentCardData();
-    if (currentCard) {
-      win?.webContents.send("nfc-card-data", currentCard);
-    }
   });
 
   win.on("close", (event) => {
@@ -95,51 +90,7 @@ function createWindow() {
 }
 
 function initializeServices() {
-  nfcService = new NFCService();
-
-  nfcService.on("cardDetected", (cardData: NFCCardData) => {
-    if (win && !win.isDestroyed()) {
-      win.webContents.send("nfc-card-data", cardData);
-    }
-
-    if (trayService) {
-      trayService.showNotification(
-        "NFC Card Detected",
-        `${cardData.name} - Launching ${cardData.pathName}`
-      );
-      trayService.updateTooltip(cardData);
-    }
-  });
-
-  nfcService.on("connected", () => {
-    console.log("NFC Service connected");
-    if (win && !win.isDestroyed()) {
-      win.webContents.send("nfc-status", { connected: true });
-    }
-  });
-
-  nfcService.on("disconnected", () => {
-    console.log("NFC Service disconnected");
-    if (win && !win.isDestroyed()) {
-      win.webContents.send("nfc-status", { connected: false });
-    }
-  });
-
-  nfcService.on("applicationLaunched", ({ pathName }) => {
-    console.log(`Application launched: ${pathName}`);
-    if (win && !win.isDestroyed()) {
-      win.webContents.send("application-launched", { pathName });
-    }
-  });
-
-  nfcService.on("launchError", ({ pathName, error }) => {
-    console.error(`Failed to launch ${pathName}:`, error);
-    if (win && !win.isDestroyed()) {
-      win.webContents.send("launch-error", { pathName, error });
-    }
-  });
-
-  trayService = new TrayService(nfcService, {
+  trayService = new TrayService({
     quitApp: () => {
       isQuiting = true;
       app.quit();
@@ -169,37 +120,60 @@ function initializeServices() {
 
   trayService.initializeTray(process.env.VITE_PUBLIC || "");
 
+  // Initialize ESP32 detection service
+  esp32DetectionService = new ESP32DetectionService();
+
+  // Set up ESP32 device event handlers
+  esp32DetectionService.on("deviceConnected", (deviceInfo: ESP32DeviceInfo) => {
+    console.log("ESP32 device connected:", deviceInfo);
+
+    // Send notification to renderer process
+    if (win) {
+      win.webContents.send("esp32-device-connected", deviceInfo);
+    }
+
+    // Show system notification via tray service
+    if (trayService) {
+      trayService.showNotification(
+        "ESP32 Device Connected",
+        `ESP32 device detected on ${deviceInfo.path}`
+      );
+    }
+  });
+
+  esp32DetectionService.on(
+    "deviceDisconnected",
+    (deviceInfo: ESP32DeviceInfo) => {
+      console.log("ESP32 device disconnected:", deviceInfo);
+
+      // Send notification to renderer process
+      if (win) {
+        win.webContents.send("esp32-device-disconnected", deviceInfo);
+      }
+
+      // Show system notification via tray service
+      if (trayService) {
+        trayService.showNotification(
+          "ESP32 Device Disconnected",
+          `ESP32 device removed from ${deviceInfo.path}`
+        );
+      }
+    }
+  );
+
+  esp32DetectionService.on("scanError", (error: any) => {
+    console.error("ESP32 scan error:", error);
+
+    // Send error to renderer process
+    if (win) {
+      win.webContents.send("esp32-scan-error", error);
+    }
+  });
+
   setupIPCHandlers();
 }
 
 function setupIPCHandlers() {
-  ipcMain.handle("get-current-card", () => {
-    return nfcService.getCurrentCardData();
-  });
-
-  ipcMain.handle("get-nfc-status", () => {
-    console.log("IPC: get-nfc-status called");
-    console.log("nfcService exists:", !!nfcService);
-    if (nfcService) {
-      const status = nfcService.isESP32Connected();
-      console.log("IPC: returning status:", status);
-      return { connected: status };
-    } else {
-      console.log("IPC: nfcService not initialized, returning false");
-      return { connected: false };
-    }
-  });
-
-  ipcMain.handle("reconnect-nfc", () => {
-    nfcService.reconnect();
-    return { success: true };
-  });
-
-  ipcMain.handle("send-nfc-command", (_, command: string) => {
-    nfcService.sendCommand(command);
-    return { success: true };
-  });
-
   ipcMain.handle("hide-to-tray", () => {
     if (win) {
       win.hide();
@@ -253,6 +227,53 @@ function setupIPCHandlers() {
     }
     return false;
   });
+
+  // ESP32 device management handlers
+  ipcMain.handle("esp32-get-devices", () => {
+    if (esp32DetectionService) {
+      return esp32DetectionService.getDetectedDevices();
+    }
+    return [];
+  });
+
+  ipcMain.handle("esp32-has-devices", () => {
+    if (esp32DetectionService) {
+      return esp32DetectionService.hasConnectedDevices();
+    }
+    return false;
+  });
+
+  ipcMain.handle("esp32-test-device", async (_, devicePath: string) => {
+    if (esp32DetectionService) {
+      try {
+        const isResponsive = await esp32DetectionService.testDeviceConnection(
+          devicePath
+        );
+        return { success: true, responsive: isResponsive };
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        return { success: false, error: errorMessage };
+      }
+    }
+    return { success: false, error: "ESP32 detection service not available" };
+  });
+
+  ipcMain.handle("esp32-start-polling", () => {
+    if (esp32DetectionService) {
+      esp32DetectionService.startPolling();
+      return { success: true };
+    }
+    return { success: false, error: "ESP32 detection service not available" };
+  });
+
+  ipcMain.handle("esp32-stop-polling", () => {
+    if (esp32DetectionService) {
+      esp32DetectionService.stopPolling();
+      return { success: true };
+    }
+    return { success: false, error: "ESP32 detection service not available" };
+  });
 }
 
 function setupGlobalShortcuts() {
@@ -298,11 +319,12 @@ app.on("will-quit", () => {
   globalShortcut.unregisterAll();
 
   // Cleanup services
-  if (nfcService) {
-    nfcService.cleanup();
-  }
   if (trayService) {
     trayService.cleanup();
+  }
+
+  if (esp32DetectionService) {
+    esp32DetectionService.destroy();
   }
 });
 

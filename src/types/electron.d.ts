@@ -17,6 +17,14 @@ export interface LaunchError {
   error: string;
 }
 
+export interface ESP32DeviceInfo {
+  path: string;
+  manufacturer?: string;
+  serialNumber?: string;
+  vendorId?: string;
+  productId?: string;
+}
+
 declare global {
   interface Window {
     ipcRenderer: {
@@ -54,6 +62,23 @@ declare global {
         callback: (data: ApplicationEvent) => void
       ) => void;
       onLaunchError: (callback: (data: LaunchError) => void) => void;
+      removeAllListeners: (channel: string) => void;
+    };
+    esp32API: {
+      getDevices: () => Promise<ESP32DeviceInfo[]>;
+      hasDevices: () => Promise<boolean>;
+      testDevice: (devicePath: string) => Promise<{
+        success: boolean;
+        responsive?: boolean;
+        error?: string;
+      }>;
+      startPolling: () => Promise<{ success: boolean; error?: string }>;
+      stopPolling: () => Promise<{ success: boolean; error?: string }>;
+      onDeviceConnected: (callback: (device: ESP32DeviceInfo) => void) => void;
+      onDeviceDisconnected: (
+        callback: (device: ESP32DeviceInfo) => void
+      ) => void;
+      onScanError: (callback: (error: any) => void) => void;
       removeAllListeners: (channel: string) => void;
     };
     windowAPI: {

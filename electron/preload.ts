@@ -22,35 +22,6 @@ contextBridge.exposeInMainWorld("ipcRenderer", {
   },
 });
 
-// Expose NFC-specific API
-contextBridge.exposeInMainWorld("nfcAPI", {
-  getCurrentCard: () => ipcRenderer.invoke("get-current-card"),
-  getNFCStatus: () => ipcRenderer.invoke("get-nfc-status"),
-  reconnectNFC: () => ipcRenderer.invoke("reconnect-nfc"),
-  sendCommand: (command: string) =>
-    ipcRenderer.invoke("send-nfc-command", command),
-  hideToTray: () => ipcRenderer.invoke("hide-to-tray"),
-
-  // Event listeners
-  onCardDetected: (callback: (cardData: any) => void) => {
-    ipcRenderer.on("nfc-card-data", (_, cardData) => callback(cardData));
-  },
-  onNFCStatusChange: (callback: (status: any) => void) => {
-    ipcRenderer.on("nfc-status", (_, status) => callback(status));
-  },
-  onApplicationLaunched: (callback: (data: any) => void) => {
-    ipcRenderer.on("application-launched", (_, data) => callback(data));
-  },
-  onLaunchError: (callback: (data: any) => void) => {
-    ipcRenderer.on("launch-error", (_, data) => callback(data));
-  },
-
-  // Remove listeners
-  removeAllListeners: (channel: string) => {
-    ipcRenderer.removeAllListeners(channel);
-  },
-});
-
 // Expose Electron file operations API
 contextBridge.exposeInMainWorld("electronAPI", {
   extractExeIcon: (filePath: string) =>
@@ -63,4 +34,32 @@ contextBridge.exposeInMainWorld("windowAPI", {
   maximize: () => ipcRenderer.invoke("window-maximize"),
   close: () => ipcRenderer.invoke("window-close"),
   isMaximized: () => ipcRenderer.invoke("window-is-maximized"),
+});
+
+// Expose ESP32 device detection API
+contextBridge.exposeInMainWorld("esp32API", {
+  getDevices: () => ipcRenderer.invoke("esp32-get-devices"),
+  hasDevices: () => ipcRenderer.invoke("esp32-has-devices"),
+  testDevice: (devicePath: string) =>
+    ipcRenderer.invoke("esp32-test-device", devicePath),
+  startPolling: () => ipcRenderer.invoke("esp32-start-polling"),
+  stopPolling: () => ipcRenderer.invoke("esp32-stop-polling"),
+
+  // Event listeners
+  onDeviceConnected: (callback: (device: any) => void) => {
+    ipcRenderer.on("esp32-device-connected", (_event, device) =>
+      callback(device)
+    );
+  },
+  onDeviceDisconnected: (callback: (device: any) => void) => {
+    ipcRenderer.on("esp32-device-disconnected", (_event, device) =>
+      callback(device)
+    );
+  },
+  onScanError: (callback: (error: any) => void) => {
+    ipcRenderer.on("esp32-scan-error", (_event, error) => callback(error));
+  },
+  removeAllListeners: (channel: string) => {
+    ipcRenderer.removeAllListeners(channel);
+  },
 });

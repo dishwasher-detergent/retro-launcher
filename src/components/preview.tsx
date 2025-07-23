@@ -1,10 +1,10 @@
-interface NFCCardPreviewProps {
+interface PreviewProps {
   name: string;
   pathName: string;
   icon?: string | null;
 }
 
-export function Preview({ name, icon }: NFCCardPreviewProps) {
+export function Preview({ name, icon }: PreviewProps) {
   return (
     <div className="relative w-72">
       <div className="relative">
