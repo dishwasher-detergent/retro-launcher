@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Copy, Download, Zap } from "lucide-react";
-import React, { useEffect, useRef, useState } from "react";
+import { Copy, Zap } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -33,7 +32,6 @@ const CartridgeSchema = z.object({
     .string()
     .min(1, "Path is required")
     .max(MAX_PATH_LENGTH, `Path must be ${MAX_PATH_LENGTH} characters or less`),
-  icon: z.string().nullable().optional(),
 });
 
 export function Writer() {
@@ -41,7 +39,6 @@ export function Writer() {
   const [base64Output, setBase64Output] = useState<string | null>(null);
   const [showOutput, setShowOutput] = useState<boolean>(false);
   const [sizeWarning, setSizeWarning] = useState<string | null>(null);
-  const iconInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<z.infer<typeof CartridgeSchema>>({
@@ -49,30 +46,20 @@ export function Writer() {
     defaultValues: {
       name: "",
       pathName: "",
-      icon: null,
     },
   });
 
   const watchedValues = form.watch();
 
-  // Calculate the size of the JSON in bytes
-  const calculateJsonSize = (data: NFCCardData): number => {
-    const jsonString = JSON.stringify(data);
-    return new Blob([jsonString]).size;
-  };
-
-  // Calculate the size of the base64 encoded JSON in bytes
   const calculateBase64Size = (data: NFCCardData): number => {
     const jsonString = JSON.stringify(data);
     const base64String = btoa(jsonString);
     return new Blob([base64String]).size;
   };
 
-  // Check if current data would fit on NFC215
   const checkSize = () => {
     const currentData: NFCCardData = {
       name: watchedValues.name || "",
-      icon: watchedValues.icon || null,
       pathName: watchedValues.pathName || "",
     };
 
@@ -93,53 +80,29 @@ export function Writer() {
     }
   };
 
-  // Check size whenever form values change
   useEffect(() => {
     checkSize();
-  }, [watchedValues.name, watchedValues.pathName, watchedValues.icon]);
+  }, [watchedValues.name, watchedValues.pathName]);
 
-  const resizeAndCompressIcon = (img: HTMLImageElement) => {
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
+  const onSubmit = (data: z.infer<typeof CartridgeSchema>) => {
+    const cardData: NFCCardData = {
+      name: data.name,
+      pathName: data.pathName,
+    };
 
-    canvas.width = 16;
-    canvas.height = 16;
+    // Check size before generating output
+    const base64Size = calculateBase64Size(cardData);
 
-    if (ctx) {
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = "high";
-      ctx.drawImage(img, 0, 0, 16, 16);
-
-      let quality = 0.7;
-      let dataUrl = "";
-
-      do {
-        dataUrl = canvas.toDataURL("image/jpeg", quality);
-        quality -= 0.1;
-      } while (dataUrl.length > 200 && quality > 0.1);
-
-      if (dataUrl.length > 200) {
-        canvas.width = 12;
-        canvas.height = 12;
-        ctx.drawImage(img, 0, 0, 12, 12);
-        dataUrl = canvas.toDataURL("image/png");
-      }
-
-      if (dataUrl.length > 200) {
-        canvas.width = 8;
-        canvas.height = 8;
-        ctx.drawImage(img, 0, 0, 8, 8);
-        dataUrl = canvas.toDataURL("image/png");
-      }
-
-      if (dataUrl.length > 200) {
-        return null;
-      }
-
-      return dataUrl;
+    if (base64Size > NFC215_MAX_BYTES) {
+      return;
     }
 
-    return null;
+    const jsonString = JSON.stringify(cardData, null, 2);
+    const base64String = btoa(JSON.stringify(cardData));
+
+    setJsonOutput(jsonString);
+    setBase64Output(base64String);
+    setShowOutput(true);
   };
 
   const handleFileSelect = async (
@@ -163,82 +126,7 @@ export function Writer() {
           form.setValue("name", fileName);
         }
       }
-
-      if (
-        (filePath.endsWith(".exe") || filePath.endsWith(".lnk")) &&
-        !form.getValues("icon") &&
-        window.electronAPI
-      ) {
-        try {
-          const result = await window.electronAPI.extractExeIcon(filePath);
-          if (result.success && result.icon) {
-            const img = new Image();
-            img.onload = () => {
-              const resizedDataUrl = resizeAndCompressIcon(img);
-
-              if (resizedDataUrl) {
-                form.setValue("icon", resizedDataUrl);
-                form.clearErrors("icon"); // Clear any previous errors
-              } else {
-                form.setError("icon", {
-                  type: "custom",
-                  message: "Icon is too large to fit on NFC215 card.",
-                });
-              }
-            };
-            img.src = result.icon;
-          }
-        } catch (error) {
-          console.error("Failed to extract icon from executable:", error);
-        }
-      }
     }
-  };
-
-  const handleIconUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const resizedDataUrl = resizeAndCompressIcon(img);
-        if (resizedDataUrl) {
-          form.setValue("icon", resizedDataUrl);
-          form.clearErrors("icon"); // Clear any previous errors
-        } else {
-          form.setError("icon", {
-            type: "manual",
-            message: "Icon is too large to fit on NFC215 card.",
-          });
-        }
-      };
-      img.src = e.target?.result as string;
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const onSubmit = (data: z.infer<typeof CartridgeSchema>) => {
-    const cardData: NFCCardData = {
-      name: data.name,
-      icon: data.icon || null,
-      pathName: data.pathName,
-    };
-
-    // Check size before generating output
-    const base64Size = calculateBase64Size(cardData);
-
-    if (base64Size > NFC215_MAX_BYTES) {
-      return;
-    }
-
-    const jsonString = JSON.stringify(cardData, null, 2);
-    const base64String = btoa(JSON.stringify(cardData));
-
-    setJsonOutput(jsonString);
-    setBase64Output(base64String);
-    setShowOutput(true);
   };
 
   const copyToClipboard = async () => {
@@ -330,70 +218,10 @@ export function Writer() {
             </FormItem>
           )}
         />
-        <FormField
-          control={form.control}
-          name="icon"
-          render={() => (
-            <FormItem>
-              <FormLabel>
-                Icon (optional - auto-extracted from exe or upload custom)
-              </FormLabel>
-              <div className="flex gap-2 items-center">
-                <FormControl>
-                  <input
-                    ref={iconInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleIconUpload}
-                    className="hidden"
-                  />
-                </FormControl>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => iconInputRef.current?.click()}
-                  className="flex-1"
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  {watchedValues.icon ? "Replace Icon" : "Choose Image"}
-                </Button>
-                {watchedValues.icon && (
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 border rounded flex items-center justify-center bg-muted overflow-hidden">
-                      <img
-                        src={watchedValues.icon}
-                        alt="Icon preview"
-                        className="size-full"
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        form.setValue("icon", null);
-                        form.clearErrors("icon");
-                      }}
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      Clear
-                    </Button>
-                  </div>
-                )}
-              </div>
-              <FormDescription>
-                Icons are automatically extracted from .exe files. You can
-                upload a custom image to override the auto-extracted icon.
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
         <FormItem>
           <FormLabel>Preview</FormLabel>
           <Preview
             name={watchedValues.name}
-            icon={watchedValues.icon}
             pathName={watchedValues.pathName}
           />
         </FormItem>
@@ -423,9 +251,6 @@ export function Writer() {
 
               if (fileInputRef.current) {
                 fileInputRef.current.value = "";
-              }
-              if (iconInputRef.current) {
-                iconInputRef.current.value = "";
               }
             }}
           >
