@@ -59,7 +59,7 @@ void handleSerialCommands() {
       
       bool cardFound = false;
       
-      // First check if a card is already present and selected
+      // Only allow writing to cards that are already present
       if (lastCardPresent) {
         // Try to communicate with the already present card
         byte bufferATQA[2];
@@ -74,21 +74,8 @@ void handleSerialCommands() {
         }
       }
       
-      // If no card was already present, wait for a new one
       if (!cardFound) {
-        Serial.println("Present NFC card to write...");
-        unsigned long start = millis();
-        while (millis() - start < 8000) { // Wait up to 8 seconds
-          if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()) {
-            cardFound = true;
-            break;
-          }
-          delay(50);
-        }
-      }
-      
-      if (!cardFound) {
-        Serial.println("ERROR: No NFC card detected");
+        Serial.println("ERROR: No NFC card present for writing");
         return;
       }
       

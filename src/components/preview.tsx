@@ -51,7 +51,11 @@ export function Preview({ name, icon }: PreviewProps) {
                       />
                     ) : (
                       <span className="text-green-400 text-2xl font-bold drop-shadow-lg filter brightness-110">
-                        RL
+                        {name
+                          .split(" ")
+                          .slice(0, 2)
+                          .map((word) => word.charAt(0).toUpperCase())
+                          .join("") || "RL"}
                       </span>
                     )}
                   </div>

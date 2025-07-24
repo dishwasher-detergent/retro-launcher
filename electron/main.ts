@@ -68,18 +68,6 @@ function createWindow() {
     }
   });
 
-  win.on("minimize", (event: Electron.Event) => {
-    event.preventDefault();
-    win?.hide();
-
-    if (trayService) {
-      trayService.showNotification(
-        "Retro Launcher",
-        "App was minimized to tray."
-      );
-    }
-  });
-
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL);
   } else {
@@ -292,28 +280,6 @@ function setupIPCHandlers() {
     return null;
   });
 }
-
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
-app.on("window-all-closed", () => {
-  if (process.platform === "darwin") {
-    isQuiting = true;
-    app.quit();
-  }
-});
-
-app.on("activate", () => {
-  // On OS X it's common to re-create a window in the app when the
-  // dock icon is clicked and there are no other windows open.
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
-  } else if (win) {
-    // Always show and focus the window when activated
-    win.show();
-    win.focus();
-  }
-});
 
 app.on("before-quit", () => {
   isQuiting = true;

@@ -1,10 +1,12 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Copy, Zap } from "lucide-react";
+import { FolderIcon, Zap } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { z } from "zod";
 
 import { Preview } from "@/components/preview";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -15,8 +17,9 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { useLogsContext } from "@/contexts/logs-context";
+import { useCartridge } from "@/hooks/cartridge.hook";
 import { NFCCardData } from "@/types/electron";
-import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 
 // NFC215 has approximately 504 bytes of user data storage
 const NFC215_MAX_BYTES = 480; // Leave some buffer for safety
@@ -35,9 +38,8 @@ const CartridgeSchema = z.object({
 });
 
 export function Writer() {
-  const [jsonOutput, setJsonOutput] = useState<string | null>(null);
-  const [base64Output, setBase64Output] = useState<string | null>(null);
-  const [showOutput, setShowOutput] = useState<boolean>(false);
+  const { lastCartridge, sendCommand } = useCartridge();
+  const { addLogs } = useLogsContext();
   const [sizeWarning, setSizeWarning] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -50,6 +52,10 @@ export function Writer() {
   });
 
   const watchedValues = form.watch();
+
+  useEffect(() => {
+    checkSize();
+  }, [watchedValues.name, watchedValues.pathName]);
 
   const calculateBase64Size = (data: NFCCardData): number => {
     const jsonString = JSON.stringify(data);
@@ -80,29 +86,28 @@ export function Writer() {
     }
   };
 
-  useEffect(() => {
-    checkSize();
-  }, [watchedValues.name, watchedValues.pathName]);
-
-  const onSubmit = (data: z.infer<typeof CartridgeSchema>) => {
+  const onSubmit = async (data: z.infer<typeof CartridgeSchema>) => {
     const cardData: NFCCardData = {
       name: data.name,
       pathName: data.pathName,
     };
 
-    // Check size before generating output
     const base64Size = calculateBase64Size(cardData);
 
     if (base64Size > NFC215_MAX_BYTES) {
       return;
     }
 
-    const jsonString = JSON.stringify(cardData, null, 2);
     const base64String = btoa(JSON.stringify(cardData));
 
-    setJsonOutput(jsonString);
-    setBase64Output(base64String);
-    setShowOutput(true);
+    try {
+      await sendCommand(`WRITE_DATA:${base64String}`);
+      toast.success("Cartridge written successfully!");
+      addLogs(`Cartridge written: ${JSON.stringify(cardData)}`);
+    } catch (error) {
+      toast.error("Failed to write cartridge.");
+      addLogs(`Error writing cartridge: ${error}`);
+    }
   };
 
   const handleFileSelect = async (
@@ -111,45 +116,11 @@ export function Writer() {
     const file = event.target.files?.[0];
     if (file) {
       const filePath = file.path || file.name;
-      form.setValue("pathName", filePath);
-
-      if (!form.getValues("name")) {
-        const fileName =
-          filePath
-            .split("\\")
-            .pop()
-            ?.split("/")
-            .pop()
-            ?.replace(/\.(exe|lnk|bat|cmd)$/i, "") || "";
-
-        if (fileName) {
-          form.setValue("name", fileName);
-        }
-      }
-    }
-  };
-
-  const copyToClipboard = async () => {
-    if (!jsonOutput) {
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(jsonOutput);
-    } catch (error) {
-      console.error("Failed to copy to clipboard:", error);
-    }
-  };
-
-  const copyBase64ToClipboard = async () => {
-    if (!base64Output) {
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(base64Output);
-    } catch (error) {
-      console.error("Failed to copy to clipboard:", error);
+      form.setValue("pathName", filePath, {
+        shouldValidate: true,
+        shouldDirty: true,
+        shouldTouch: true,
+      });
     }
   };
 
@@ -209,9 +180,10 @@ export function Writer() {
                 <Button
                   type="button"
                   variant="outline"
+                  size="icon"
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  Browse
+                  <FolderIcon className="size-4" />
                 </Button>
               </div>
               <FormMessage />
@@ -228,26 +200,26 @@ export function Writer() {
         <div className="flex gap-2">
           <Button
             type="submit"
+            size="sm"
             disabled={
               form.formState.isSubmitting ||
               !form.formState.isValid ||
-              !form.formState.isDirty
+              !form.formState.isDirty ||
+              lastCartridge === null
             }
           >
-            <Zap className="h-4 w-4 mr-2" />
+            <Zap className="size-4" />
             {sizeWarning?.includes("exceeds")
-              ? "Data Too Large for NFC215"
-              : "Generate Cartridge Data"}
+              ? "Data Too Large"
+              : "Write to Cartridge"}
           </Button>
           <Button
             type="button"
             variant="outline"
+            size="sm"
             onClick={() => {
               form.reset();
               form.clearErrors();
-              setJsonOutput(null);
-              setBase64Output(null);
-              setShowOutput(false);
 
               if (fileInputRef.current) {
                 fileInputRef.current.value = "";
@@ -257,56 +229,6 @@ export function Writer() {
             Reset Form
           </Button>
         </div>
-        {showOutput && (
-          <>
-            <FormItem>
-              <FormLabel>Generated JSON Data</FormLabel>
-              <div className="relative">
-                <textarea
-                  value={jsonOutput || ""}
-                  readOnly
-                  className="bg-background w-full h-32 p-3 text-sm font-mono border rounded-md resize-none"
-                  placeholder="Generated JSON will appear here..."
-                />
-                <Button
-                  onClick={copyToClipboard}
-                  size="icon"
-                  className="absolute top-2 right-2"
-                  type="button"
-                >
-                  <Copy className="size-4" />
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Human-readable JSON format for debugging and manual use.
-              </p>
-            </FormItem>
-            <FormItem>
-              <FormLabel>Generated Base64 Data</FormLabel>
-              <div className="relative">
-                <textarea
-                  value={base64Output || ""}
-                  readOnly
-                  className="bg-background w-full h-32 p-3 text-sm font-mono border rounded-md resize-none"
-                  placeholder="Generated Base64 will appear here..."
-                />
-                <Button
-                  onClick={copyBase64ToClipboard}
-                  size="icon"
-                  className="absolute top-2 right-2"
-                  type="button"
-                >
-                  <Copy className="size-4" />
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Base64 encoded data optimized for NFC card storage. Copy this
-                data and paste it to your NFC card using your preferred NFC
-                writing tool.
-              </p>
-            </FormItem>
-          </>
-        )}
       </form>
     </Form>
   );
