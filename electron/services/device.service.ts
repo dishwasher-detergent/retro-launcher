@@ -9,13 +9,6 @@ export interface DeviceInfo {
   productId?: string;
 }
 
-export interface CartridgeData {
-  uid: string;
-  blocks: { [blockNumber: string]: string };
-  timestamp: number;
-  devicePath: string;
-}
-
 export class DeviceService extends EventEmitter {
   private detectedDevices: Map<string, DeviceInfo> = new Map();
   private selectedDevice: DeviceInfo | null = null;
@@ -26,7 +19,7 @@ export class DeviceService extends EventEmitter {
   private readonly CUSTOM_DEVICE_ID = "RETRO_LAUNCHER";
   private readonly BAUD_RATE = 115200;
 
-  private lastCartridgeData: CartridgeData | null = null;
+  private lastCartridgeData: string | null = null;
   private dataBuffer: string = "";
 
   private readonly KNOWN_DEVICES = {
@@ -291,8 +284,6 @@ export class DeviceService extends EventEmitter {
       });
 
       this.emit("deviceConnectionEstablished", { device, connection: port });
-
-      await this.startNFCReading();
     } catch (error) {
       console.error(
         `Failed to connect to selected device ${device.path}:`,
@@ -341,101 +332,15 @@ export class DeviceService extends EventEmitter {
       const dataStr = data.toString();
       this.dataBuffer += dataStr;
 
-      if (this.dataBuffer.includes("AUTO_NFC_DETECTED")) {
-        this.handleAutoNFCDetection();
-      }
-    });
-  }
+      if (this.dataBuffer.includes("NFC_DETECTED")) {
+        const nfcData = dataStr.split("DATA:")[1];
 
-  /**
-   * Handle automatic NFC detection from device
-   */
-  private handleAutoNFCDetection(): void {
-    const startMarker = "AUTO_NFC_DETECTED";
-    const endMarker = "AUTO_NFC_COMPLETE";
-
-    const startIndex = this.dataBuffer.indexOf(startMarker);
-    const endIndex = this.dataBuffer.indexOf(endMarker);
-
-    if (startIndex !== -1 && endIndex !== -1) {
-      const nfcDataStr = this.dataBuffer
-        .substring(startIndex + startMarker.length, endIndex)
-        .trim();
-
-      const nfcData = this.parseNFCData(
-        nfcDataStr,
-        this.selectedDevice?.path || "unknown"
-      );
-
-      if (nfcData) {
-        this.lastCartridgeData = nfcData;
-        this.emit("cartridgeDetected", nfcData);
-
-        console.log(nfcData);
-      }
-
-      this.dataBuffer = this.dataBuffer.substring(endIndex + endMarker.length);
-    }
-  }
-
-  /**
-   * Parse raw NFC data into structured cartridge data
-   */
-  private parseNFCData(
-    rawData: string,
-    devicePath: string
-  ): CartridgeData | null {
-    const lines = rawData
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0);
-
-    let uid = "";
-    const blocks: { [blockNumber: string]: string } = {};
-
-    for (const line of lines) {
-      if (line.startsWith("UID:")) {
-        uid = line.substring(4).trim();
-      } else if (line.startsWith("Block ")) {
-        const colonIndex = line.indexOf(":");
-        if (colonIndex > 0) {
-          const blockPart = line.substring(5, colonIndex);
-          const blockNumber = blockPart.trim();
-          const blockData = line.substring(colonIndex + 1).trim();
-
-          if (!blockData.startsWith("ERROR")) {
-            blocks[blockNumber] = blockData;
-          }
+        if (nfcData) {
+          this.lastCartridgeData = nfcData;
+          this.emit("cartridgeDetected", nfcData);
         }
       }
-    }
-
-    if (uid && Object.keys(blocks).length > 0) {
-      return {
-        uid,
-        blocks,
-        timestamp: Date.now(),
-        devicePath,
-      };
-    }
-
-    return null;
-  }
-
-  /**
-   * Automatically start NFC reading on the connected device
-   */
-  private async startNFCReading(): Promise<void> {
-    try {
-      await this.sendCommand("START_AUTO_NFC");
-    } catch (error) {
-      console.error("Failed to start NFC reading:", error);
-      this.emit("nfcError", {
-        devicePath: this.selectedDevice?.path || "unknown",
-        error,
-        rawData: "START_AUTO_NFC command failed",
-      });
-    }
+    });
   }
 
   // ===========================================
@@ -469,16 +374,16 @@ export class DeviceService extends EventEmitter {
   }
 
   /**
-   * Write data to an NFC card via the selected device
+   * Write data to an NFC card via the selected device (firmware expects WRITE_DATA:<data>)
    */
   public async writeToCartridge(data: string): Promise<void> {
-    return this.sendCommand(`WRITE_NFC:${data}`);
+    return this.sendCommand(`WRITE_DATA:${data}`);
   }
 
   /**
    * Get the last detected cartridge data
    */
-  public getLastCartridge(): CartridgeData | null {
+  public getLastCartridge(): string | null {
     return this.lastCartridgeData;
   }
 

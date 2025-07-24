@@ -7,83 +7,31 @@
 
 // Constants
 #define DEVICE_ID "RETRO_LAUNCHER"
-#define SERIAL_TIMEOUT 10000
-#define NFC_SCAN_TIMEOUT 15000
-#define MAX_RETRY_ATTEMPTS 3
-#define BLOCKS_TO_READ 16  // Read more blocks for better NDEF parsing
-#define BLOCKS_TO_WRITE 16  // Maximum blocks to write
-#define MAX_DATA_LENGTH 256  // Maximum data length for writing
+
+MFRC522 rfid(SS_PIN, RST_PIN);
 
 // Global variables
-MFRC522 rfid(SS_PIN, RST_PIN);
-String lastNFCData = "";
-String lastUID = "";
-unsigned long lastScanTime = 0;
-bool hasValidLastScan = false;
+String lastNfcData = "";
 
 void setup() {
   Serial.begin(115200);
   
-  // Wait for serial connection with timeout
   unsigned long startTime = millis();
   while (!Serial && (millis() - startTime < 5000)) {
     delay(10);
   }
-  
-  Serial.println("Starting RFID initialization...");
-  Serial.println("SS_PIN: " + String(SS_PIN));
-  Serial.println("RST_PIN: " + String(RST_PIN));
-  
-  // Initialize SPI with explicit configuration
+
   SPI.begin();
-  Serial.println("SPI initialized");
-  
-  // Initialize RFID with delay
-  delay(100);
   rfid.PCD_Init();
-  delay(100);
-  Serial.println("RFID PCD_Init completed");
   
-  // Check if the module is properly connected
-  byte version = rfid.PCD_ReadRegister(rfid.VersionReg);
-  Serial.println("MFRC522 Version: 0x" + String(version, HEX));
-  
-  if (version == 0x00 || version == 0xFF) {
-    Serial.println("ERROR: RFID module not detected - check wiring!");
-    Serial.println("Expected version: 0x91 or 0x92");
-    Serial.println("Continuing without self-test...");
-  } else {
-    Serial.println("RFID module detected successfully");
-    
-    // Perform self-test with better error reporting
-    Serial.println("Performing RFID self-test...");
-    if (!rfid.PCD_PerformSelfTest()) {
-      Serial.println("WARNING: RFID module self-test failed");
-      Serial.println("This might indicate hardware issues, but the module may still work");
-      Serial.println("Common causes:");
-      Serial.println("- Loose connections");
-      Serial.println("- Insufficient power supply");
-      Serial.println("- Defective module");
-    } else {
-      Serial.println("RFID self-test passed!");
-    }
-    
-    // Re-initialize after self-test
-    rfid.PCD_Init();
-    delay(100);
-  }
-  
-  Serial.println("Commands: WHO_ARE_YOU, GET_LAST_NFC, WRITE_NFC:<data>");
+  Serial.println("Commands: WHO_ARE_YOU, GET_LAST_NFC, WRITE_DATA:<data>");
 }
 
 void loop() {
-  // Handle serial commands
   handleSerialCommands();
-  
-  // Continuous NFC scanning when idle
-  performContinuousNFCScan();
-  
-  delay(50); // Small delay to prevent overwhelming the serial
+  checkForNfcCard();
+
+  delay(50);
 }
 
 /**
@@ -96,18 +44,45 @@ void handleSerialCommands() {
     
     if (command.length() == 0) return;
     
-    // Device identification
     if (command == "WHO_ARE_YOU") {
       Serial.println(DEVICE_ID);
     }
-    // Get last scanned NFC data
     else if (command == "GET_LAST_NFC") {
-      sendLastNFCData();
+      if (lastNfcData.length() > 0) {
+        Serial.println("NFC_DATA:" + lastNfcData);
+      } else {
+        Serial.println("NO_NFC_DATA");
+      }
     }
-    // Write data to NFC card
-    else if (command.startsWith("WRITE_NFC:")) {
-      String dataToWrite = command.substring(10); // Remove "WRITE_NFC:" prefix
-      writeNFCCard(dataToWrite);
+    else if (command.startsWith("WRITE_DATA:")) {
+      String dataToWrite = command.substring(11);
+      dataToWrite.trim();
+      if (dataToWrite.length() == 0) {
+        Serial.println("ERROR: No data provided to write");
+        return;
+      }
+      Serial.println("Present NFC card to write...");
+      unsigned long start = millis();
+      bool cardFound = false;
+      while (millis() - start < 8000) { // Wait up to 8 seconds
+        if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()) {
+          cardFound = true;
+          break;
+        }
+        delay(50);
+      }
+      if (!cardFound) {
+        Serial.println("ERROR: No NFC card detected");
+        return;
+      }
+      bool writeOk = writeNtagTextRecord(4, dataToWrite);
+      if (writeOk) {
+        Serial.println("WRITE_OK");
+      } else {
+        Serial.println("ERROR: Write failed");
+      }
+      rfid.PICC_HaltA();
+      rfid.PCD_StopCrypto1();
     }
     else {
       Serial.println("ERROR: Unknown command: " + command);
@@ -116,228 +91,178 @@ void handleSerialCommands() {
 }
 
 /**
- * Continuous NFC scanning for passive detection
+ * Write a simple NDEF text record to NTAG215 starting at a given page
  */
-void performContinuousNFCScan() {
-  if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()) {
-    String currentUID = getCardUID();
-    
-    // Only process if it's a new card or significant time has passed
-    if (currentUID != lastUID || (millis() - lastScanTime > 2000)) {
-      String nfcData = readNFCCard();
-      
-      if (nfcData.length() > 0) {
-        lastNFCData = nfcData;
-        lastUID = currentUID;
-        lastScanTime = millis();
-        hasValidLastScan = true;
-        
-        // Notify of automatic scan
-        Serial.println("AUTO_NFC_DETECTED");
-        Serial.print(nfcData);
-        Serial.println("AUTO_NFC_COMPLETE");
-      }
+bool writeNtagTextRecord(byte startPage, const String &text) {
+  // NDEF text record header: 0x03, length, 0xD1, 0x01, payloadLen, 0x54, langLen, 'en', <text>, 0xFE
+  byte langLen = 2;
+  String lang = "en";
+  byte textLen = text.length();
+  byte payloadLen = 1 + langLen + textLen; // 1 byte status + lang + text
+  byte ndefLen = 7 + textLen; // header + text
+  if (ndefLen > 48) return false; // Too long for typical NTAG215 user area
+
+  byte ndef[48] = {0};
+  ndef[0] = 0x03; // NDEF TLV
+  ndef[1] = 5 + langLen + textLen; // length of NDEF message
+  ndef[2] = 0xD1; // NDEF header (MB/ME/SR/TNF=1)
+  ndef[3] = 0x01; // type length
+  ndef[4] = 1 + langLen + textLen; // payload length
+  ndef[5] = 0x54; // 'T' (text record)
+  ndef[6] = langLen; // language code length
+  ndef[7] = 'e';
+  ndef[8] = 'n';
+  for (byte i = 0; i < textLen; i++) {
+    ndef[9 + i] = text[i];
+  }
+  ndef[9 + textLen] = 0xFE; // NDEF terminator
+
+  // Write 4 bytes per page
+  for (byte i = 0; i < (10 + textLen + 3) / 4; i++) {
+    byte pageBuf[4];
+    for (byte j = 0; j < 4; j++) {
+      pageBuf[j] = ndef[i * 4 + j];
     }
-    
-    // Halt the card
-    rfid.PICC_HaltA();
-    rfid.PCD_StopCrypto1();
-    delay(1000); // Prevent rapid re-scanning of same card
-  }
-}
-
-/**
- * Read NFC card data with improved error handling
- */
-String readNFCCard() {
-  String result = "";
-
-  try {
-    String uid = getCardUID();
-    result += "UID:" + uid + "\n";
-
-    byte buffer[18];
-    byte size = sizeof(buffer);
-
-    for (byte block = 4; block < min(BLOCKS_TO_READ, 64); block++) {
-      bool blockRead = false;
-
-      for (int attempt = 0; attempt < MAX_RETRY_ATTEMPTS && !blockRead; attempt++) {
-        MFRC522::StatusCode status = rfid.MIFARE_Read(block, buffer, &size);
-
-        if (status == MFRC522::STATUS_OK) {
-          result += "Block " + String(block) + ":";
-          for (byte i = 0; i < 16; i++) {
-            if (buffer[i] < 0x10) result += " 0";
-            else result += " ";
-            result += String(buffer[i], HEX);
-          }
-          result += "\n";
-          blockRead = true;
-        } else if (attempt == MAX_RETRY_ATTEMPTS - 1) {
-          // Only log error on final attempt to avoid spam
-          result += "Block " + String(block) + ": ERROR " + String(rfid.GetStatusCodeName(status)) + "\n";
-        }
-
-        if (!blockRead) delay(10); // Brief delay before retry
-      }
+    MFRC522::StatusCode status = rfid.MIFARE_Ultralight_Write(startPage + i, pageBuf, 4);
+    if (status != MFRC522::STATUS_OK) {
+      return false;
     }
-
-  } catch (...) {
-    Serial.println("ERROR: Exception occurred while reading NFC card");
-    return "";
   }
-
-  return result;
+  return true;
 }
 
 /**
- * Get formatted UID string
+ * Check for NFC cards and read data automatically
  */
-String getCardUID() {
-  String uid = "";
-  for (byte i = 0; i < rfid.uid.size; i++) {
-    if (rfid.uid.uidByte[i] < 0x10) uid += "0";
-    uid += String(rfid.uid.uidByte[i], HEX);
-  }
-  uid.toUpperCase();
-  return uid;
-}
-
-/**
- * Send last scanned NFC data
- */
-void sendLastNFCData() {
-  if (hasValidLastScan && lastNFCData.length() > 0) {
-    Serial.println("LAST_NFC_DATA_START");
-    Serial.print(lastNFCData);
-    Serial.println("LAST_NFC_DATA_END");
-  } else {
-    Serial.println("ERROR: No previous NFC scan data available");
-  }
-}
-
-/**
- * Write data to NFC card
- */
-void writeNFCCard(String data) {
-  Serial.println("WRITE_NFC_START");
-  
-  // Wait for a card to be present with timeout
-  unsigned long startTime = millis();
-  bool cardDetected = false;
-  
-  Serial.println("Waiting for NFC card to write...");
-  
-  while (millis() - startTime < NFC_SCAN_TIMEOUT) {
-    if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()) {
-      cardDetected = true;
-      break;
-    }
-    delay(100);
-  }
-  
-  if (!cardDetected) {
-    Serial.println("ERROR: No NFC card detected within timeout");
-    Serial.println("WRITE_NFC_COMPLETE");
+void checkForNfcCard() {
+  if (!rfid.PICC_IsNewCardPresent()) {
     return;
   }
-  
-  // Get card UID for confirmation
-  String uid = getCardUID();
-  Serial.println("Writing to card UID: " + uid);
-  
-  // Authenticate and write data
-  bool writeSuccess = writeDataToCard(data);
-  
-  if (writeSuccess) {
-    Serial.println("SUCCESS: Data written to NFC card");
-  } else {
-    Serial.println("ERROR: Failed to write data to NFC card");
+
+  if (!rfid.PICC_ReadCardSerial()) {
+    return;
   }
+
+  String nfcUid = "";
+  for (byte i = 0; i < rfid.uid.size; i++) {
+    if (rfid.uid.uidByte[i] < 0x10) {
+      nfcUid += "0";
+    }
+    nfcUid += String(rfid.uid.uidByte[i], HEX);
+  }
+  nfcUid.toUpperCase();
+
+  String nfcData = readNtagData(4);
   
-  // Halt the card
+  lastNfcData = "UID:" + nfcUid;
+  if (nfcData.length() > 0) {
+    lastNfcData += ",DATA:" + nfcData;
+  }
+
+  Serial.println("NFC_DETECTED:" + lastNfcData);
+
   rfid.PICC_HaltA();
   rfid.PCD_StopCrypto1();
-  
-  Serial.println("WRITE_NFC_COMPLETE");
 }
 
 /**
- * Write data to NFC card blocks
+ * Read data from NTAG215 (NFC Forum Type 2) starting from a specific page
  */
-bool writeDataToCard(String data) {
-  // Limit data length
-  if (data.length() > MAX_DATA_LENGTH) {
-    Serial.println("WARNING: Data truncated to " + String(MAX_DATA_LENGTH) + " characters");
-    data = data.substring(0, MAX_DATA_LENGTH);
+String readNtagData(byte startPage) {
+  byte buffer[18];
+  byte size = sizeof(buffer);
+  String data = "";
+  
+  // Read the first block to find NDEF structure
+  MFRC522::StatusCode status = rfid.MIFARE_Read(startPage, buffer, &size);
+  if (status != MFRC522::STATUS_OK) {
+    return "";
   }
   
-  // Convert string to bytes
-  byte dataBytes[MAX_DATA_LENGTH + 1];
-  data.getBytes(dataBytes, data.length() + 1);
+  // Look for NDEF structure
+  // Typical NDEF starts with: 0x03 (NDEF Message TLV), length, then record
+  // We need to skip the NDEF headers and find the actual text payload
   
-  // Calculate how many blocks we need (16 bytes per block)
-  int blocksNeeded = (data.length() + 15) / 16;
-  if (blocksNeeded > BLOCKS_TO_WRITE) {
-    blocksNeeded = BLOCKS_TO_WRITE;
-  }
+  bool foundNdefStart = false;
+  byte payloadStart = 0;
+  byte payloadLength = 0;
   
-  Serial.println("Writing " + String(data.length()) + " bytes across " + String(blocksNeeded) + " blocks");
-  
-  // Try to authenticate with default keys
-  MFRC522::MIFARE_Key key;
-  for (byte i = 0; i < 6; i++) key.keyByte[i] = 0xFF; // Default key
-  
-  bool allBlocksWritten = true;
-  
-  // Write data starting from block 4 (blocks 0-3 are usually reserved)
-  for (int block = 4; block < 4 + blocksNeeded; block++) {
-    // Authenticate for each block
-    byte trailerBlock = ((block / 4) * 4) + 3; // Calculate trailer block
-    
-    for (int attempt = 0; attempt < MAX_RETRY_ATTEMPTS; attempt++) {
-      MFRC522::StatusCode status = rfid.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, trailerBlock, &key, &(rfid.uid));
-      
-      if (status == MFRC522::STATUS_OK) {
-        break;
-      } else if (attempt == MAX_RETRY_ATTEMPTS - 1) {
-        Serial.println("ERROR: Authentication failed for block " + String(block));
-        allBlocksWritten = false;
-        continue;
-      }
-      delay(10);
+  // Search through the first few reads for NDEF text record
+  for (byte page = startPage; page < startPage + 12; page += 4) {
+    status = rfid.MIFARE_Read(page, buffer, &size);
+    if (status != MFRC522::STATUS_OK) {
+      break;
     }
     
-    // Prepare data for this block
-    byte blockData[16];
-    memset(blockData, 0, 16); // Initialize with zeros
-    
-    int dataStartIndex = (block - 4) * 16;
-    int bytesToCopy = min(16, (int)data.length() - dataStartIndex);
-    
-    if (bytesToCopy > 0) {
-      memcpy(blockData, dataBytes + dataStartIndex, bytesToCopy);
-    }
-    
-    // Write the block
-    bool blockWritten = false;
-    for (int attempt = 0; attempt < MAX_RETRY_ATTEMPTS && !blockWritten; attempt++) {
-      MFRC522::StatusCode status = rfid.MIFARE_Write(block, blockData, 16);
-      
-      if (status == MFRC522::STATUS_OK) {
-        Serial.println("Block " + String(block) + " written successfully");
-        blockWritten = true;
-      } else {
-        if (attempt == MAX_RETRY_ATTEMPTS - 1) {
-          Serial.println("ERROR: Failed to write block " + String(block) + " - " + String(rfid.GetStatusCodeName(status)));
-          allBlocksWritten = false;
-        } else {
-          delay(10);
+    // Look for text record pattern in the 16 bytes
+    for (byte i = 0; i < 13; i++) {  // Leave room to check ahead
+      // Look for NDEF text record: 0xD1 0x01 <length> 0x54 <lang_len> <lang> <text>
+      // Or simple text pattern: 0x54 0x02 'e' 'n' <text>
+      if (buffer[i] == 0x54 && i + 3 < 16) {  // 'T' record type
+        byte langLen = buffer[i + 1];
+        if (langLen <= 5 && i + 2 + langLen < 16) {  // Reasonable language length
+          payloadStart = i + 2 + langLen;  // Skip 'T', lang length, and language code
+          foundNdefStart = true;
+          
+          // Extract text data starting from payloadStart
+          for (byte j = payloadStart; j < 16; j++) {
+            if (buffer[j] == 0x00 || buffer[j] == 0xFE) {
+              // Stop at null or NDEF terminator
+              return data;
+            }
+            if (buffer[j] >= 0x20 && buffer[j] <= 0x7E) {
+              data += (char)buffer[j];
+            }
+          }
+          
+          // If we need more data, continue reading next pages
+          if (data.length() > 0) {
+            // Read additional pages if needed
+            for (byte nextPage = page + 4; nextPage < 135 && data.length() < 50; nextPage += 4) {
+              status = rfid.MIFARE_Read(nextPage, buffer, &size);
+              if (status != MFRC522::STATUS_OK) break;
+              
+              for (byte k = 0; k < 16; k++) {
+                if (buffer[k] == 0x00 || buffer[k] == 0xFE) {
+                  return data;
+                }
+                if (buffer[k] >= 0x20 && buffer[k] <= 0x7E) {
+                  data += (char)buffer[k];
+                }
+              }
+            }
+          }
+          return data;
         }
       }
     }
   }
   
-  return allBlocksWritten;
+  // If no NDEF structure found, fall back to simple text extraction
+  // This will still include the debug output for troubleshooting
+  for (byte page = startPage; page < startPage + 8; page += 4) {
+    status = rfid.MIFARE_Read(page, buffer, &size);
+    if (status != MFRC522::STATUS_OK) break;
+    
+    // Debug: Print raw hex data for first few reads
+    if (page <= 12) {
+      Serial.print("Page ");
+      Serial.print(page);
+      Serial.print(": ");
+      for (byte j = 0; j < 16; j++) {
+        if (buffer[j] < 0x10) Serial.print("0");
+        Serial.print(buffer[j], HEX);
+        Serial.print(" ");
+      }
+      Serial.println();
+    }
+    
+    for (byte i = 0; i < 16; i++) {
+      if (buffer[i] >= 0x20 && buffer[i] <= 0x7E) {
+        data += (char)buffer[i];
+      }
+    }
+  }
+  
+  return data;
 }

@@ -1,5 +1,4 @@
 import { useCartridge } from "@/hooks/cartridge.hook";
-import { decodeNdefTextRecord } from "@/lib/utils";
 
 export function HomePage() {
   const { lastCartridge, isLoading } = useCartridge();
@@ -31,7 +30,7 @@ export function HomePage() {
             <p className="text-sm">Place a cartridge in the reader.</p>
           </div>
         )} */}
-        <pre>{decodeNdefTextRecord(lastCartridge?.blocks || {})}</pre>
+        <pre>{lastCartridge}</pre>
       </div>
     </>
   );

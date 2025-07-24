@@ -25,13 +25,6 @@ export interface DeviceInfo {
   productId?: string;
 }
 
-export interface CartridgeData {
-  uid: string;
-  blocks: { [blockNumber: string]: string };
-  timestamp: number;
-  devicePath: string;
-}
-
 declare global {
   interface Window {
     ipcRenderer: {

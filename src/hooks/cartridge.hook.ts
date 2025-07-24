@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-import { CartridgeData } from "../types/electron";
 
 export interface CartridgeStatus {
-  lastCartridge: CartridgeData | null;
+  lastCartridge: string | null;
   isConnected: boolean;
   connectedDevicePath: string | null;
   isLoading: boolean;
@@ -13,9 +12,7 @@ export interface CartridgeStatus {
 }
 
 export function useCartridge(): CartridgeStatus {
-  const [lastCartridge, setLastCartridge] = useState<CartridgeData | null>(
-    null
-  );
+  const [lastCartridge, setLastCartridge] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [connectedDevicePath, setConnectedDevicePath] = useState<string | null>(
     null
@@ -50,12 +47,10 @@ export function useCartridge(): CartridgeStatus {
 
     if (window.cartridgeApi) {
       // Listen for cartridge detection events
-      window.cartridgeApi.onCartridgeDetected(
-        (cartridgeData: CartridgeData) => {
-          setLastCartridge(cartridgeData);
-          setError(null);
-        }
-      );
+      window.cartridgeApi.onCartridgeDetected((cartridgeData: string) => {
+        setLastCartridge(cartridgeData);
+        setError(null);
+      });
 
       // Listen for NFC errors
       window.cartridgeApi.onNFCError((errorData: any) => {
