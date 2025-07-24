@@ -70,6 +70,7 @@ declare global {
         command: string
       ) => Promise<{ success: boolean; error?: string }>;
       onCartridgeDetected: (callback: (cartridge: string) => void) => void;
+      onCartridgeRemoved: (callback: () => void) => void;
       onNFCError: (callback: (error: any) => void) => void;
       onConnectionError: (callback: (error: any) => void) => void;
       removeAllListeners: (channel: string) => void;

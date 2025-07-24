@@ -76,6 +76,9 @@ contextBridge.exposeInMainWorld("cartridgeApi", {
       callback(cartridge)
     );
   },
+  onCartridgeRemoved: (callback: () => void) => {
+    ipcRenderer.on("cartridge-removed", (_event) => callback());
+  },
   onNFCError: (callback: (error: any) => void) => {
     ipcRenderer.on("nfc-error", (_event, error) => callback(error));
   },

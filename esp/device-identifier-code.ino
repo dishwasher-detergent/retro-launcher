@@ -10,6 +10,11 @@
 
 MFRC522 rfid(SS_PIN, RST_PIN);
 
+// State tracking for NFC card presence
+bool lastCardPresent = false;
+unsigned long lastCardCheckTime = 0;
+const unsigned long CARD_CHECK_INTERVAL = 100; // Check every 100ms
+
 void setup() {
   Serial.begin(115200);
   
@@ -26,7 +31,7 @@ void setup() {
 
 void loop() {
   handleSerialCommands();
-  checkForNfcCard();
+  checkForNfcCardChanges();
 
   delay(50);
 }
@@ -122,17 +127,69 @@ bool writeNtagTextRecord(byte startPage, const String &text) {
 }
 
 /**
- * Check for NFC cards and read data automatically
+ * Check for NFC card presence changes and handle detection/removal
  */
-void checkForNfcCard() {
-  if (!rfid.PICC_IsNewCardPresent()) {
+void checkForNfcCardChanges() {
+  unsigned long currentTime = millis();
+  
+  // Throttle the checking to avoid excessive polling
+  if (currentTime - lastCardCheckTime < CARD_CHECK_INTERVAL) {
     return;
   }
-
-  if (!rfid.PICC_ReadCardSerial()) {
-    return;
+  lastCardCheckTime = currentTime;
+  
+  // Try to select a card (this works for both new and existing cards)
+  bool cardPresent = false;
+  
+  // First check if there's a new card
+  if (rfid.PICC_IsNewCardPresent()) {
+    if (rfid.PICC_ReadCardSerial()) {
+      cardPresent = true;
+    }
+  } else {
+    // If no new card, try to communicate with an existing card
+    // This is a more reliable way to check if a card is still present
+    byte bufferATQA[2];
+    byte bufferSize = sizeof(bufferATQA);
+    
+    // Try to wake up a card that might still be in the field
+    MFRC522::StatusCode result = rfid.PICC_WakeupA(bufferATQA, &bufferSize);
+    if (result == MFRC522::STATUS_OK || result == MFRC522::STATUS_COLLISION) {
+      // A card responded, so one is present
+      cardPresent = true;
+      // Try to select it to get UID
+      if (rfid.PICC_ReadCardSerial()) {
+        // Successfully read the card
+      }
+    }
   }
+  
+  // Handle state changes
+  if (cardPresent) {
+    if (!lastCardPresent) {
+      // Card was just inserted - read and report data
+      handleCardDetected();
+      lastCardPresent = true;
+    }
+    // Card is still present, do nothing
+    
+    // Always halt and stop crypto after checking
+    rfid.PICC_HaltA();
+    rfid.PCD_StopCrypto1();
+  } else {
+    // No card present
+    if (lastCardPresent) {
+      // Card was present but now removed
+      Serial.println("NFC_REMOVED");
+      lastCardPresent = false;
+    }
+  }
+}
 
+/**
+ * Handle when a new NFC card is detected
+ */
+void handleCardDetected() {
   String nfcUid = "";
   for (byte i = 0; i < rfid.uid.size; i++) {
     if (rfid.uid.uidByte[i] < 0x10) {
@@ -150,9 +207,6 @@ void checkForNfcCard() {
   }
 
   Serial.println("NFC_DETECTED:" + data);
-
-  rfid.PICC_HaltA();
-  rfid.PCD_StopCrypto1();
 }
 
 /**
@@ -229,23 +283,9 @@ String readNtagData(byte startPage) {
   }
   
   // If no NDEF structure found, fall back to simple text extraction
-  // This will still include the debug output for troubleshooting
   for (byte page = startPage; page < startPage + 8; page += 4) {
     status = rfid.MIFARE_Read(page, buffer, &size);
     if (status != MFRC522::STATUS_OK) break;
-    
-    // Debug: Print raw hex data for first few reads
-    if (page <= 12) {
-      Serial.print("Page ");
-      Serial.print(page);
-      Serial.print(": ");
-      for (byte j = 0; j < 16; j++) {
-        if (buffer[j] < 0x10) Serial.print("0");
-        Serial.print(buffer[j], HEX);
-        Serial.print(" ");
-      }
-      Serial.println();
-    }
     
     for (byte i = 0; i < 16; i++) {
       if (buffer[i] >= 0x20 && buffer[i] <= 0x7E) {

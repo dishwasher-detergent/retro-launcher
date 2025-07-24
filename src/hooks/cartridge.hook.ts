@@ -50,6 +50,12 @@ export function useCartridge(): CartridgeStatus {
         setError(null);
       });
 
+      // Listen for cartridge removal events
+      window.cartridgeApi.onCartridgeRemoved(() => {
+        setLastCartridge(null);
+        setError(null);
+      });
+
       // Listen for NFC errors
       window.cartridgeApi.onNFCError((errorData: any) => {
         console.error("NFC Error:", errorData);
@@ -68,6 +74,7 @@ export function useCartridge(): CartridgeStatus {
     return () => {
       if (window.cartridgeApi) {
         window.cartridgeApi.removeAllListeners("cartridge-detected");
+        window.cartridgeApi.removeAllListeners("cartridge-removed");
         window.cartridgeApi.removeAllListeners("nfc-error");
         window.cartridgeApi.removeAllListeners("cartridge-connection-error");
       }

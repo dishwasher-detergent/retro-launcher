@@ -156,6 +156,12 @@ function initializeServices() {
     }
   });
 
+  deviceService.on("cartridgeRemoved", () => {
+    if (win) {
+      win.webContents.send("cartridge-removed");
+    }
+  });
+
   deviceService.on("nfcError", (error: any) => {
     if (win) {
       win.webContents.send("nfc-error", error);
@@ -225,9 +231,7 @@ function setupIPCHandlers() {
   ipcMain.handle("test-device", async (_, devicePath: string) => {
     if (deviceService) {
       try {
-        const isResponsive = await deviceService.testDeviceConnection(
-          devicePath
-        );
+        const isResponsive = await deviceService.validateDevice(devicePath);
         return { success: true, responsive: isResponsive };
       } catch (error) {
         const errorMessage =
@@ -251,13 +255,6 @@ function setupIPCHandlers() {
       return { success: true };
     }
     return { success: false, error: "Device service not available" };
-  });
-
-  ipcMain.handle("has-selected-device", () => {
-    if (deviceService) {
-      return deviceService.hasSelectedDevice();
-    }
-    return false;
   });
 
   ipcMain.handle("get-last-cartridge", () => {

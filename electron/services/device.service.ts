@@ -167,19 +167,17 @@ export class DeviceService extends EventEmitter {
     );
   }
 
-  private async validateDevice(devicePath: string): Promise<boolean> {
+  public async validateDevice(devicePath: string): Promise<boolean> {
     return new Promise((resolve) => {
       const port = new SerialPort({
         path: devicePath,
-        baudRate: 115200,
+        baudRate: this.BAUD_RATE,
         autoOpen: false,
       });
 
       const cleanup = () => {
         if (port.isOpen) {
-          port.close(() => {
-            resolve(false);
-          });
+          port.close(() => resolve(false));
         } else {
           resolve(false);
         }
@@ -190,27 +188,21 @@ export class DeviceService extends EventEmitter {
       port.open((err) => {
         if (err) {
           clearTimeout(timeout);
-          cleanup();
-          return;
+          return cleanup();
         }
 
         port.write("WHO_ARE_YOU\n");
 
         const onData = (data: Buffer) => {
           const response = data.toString().trim();
-
           if (response.includes(this.CUSTOM_DEVICE_ID)) {
             clearTimeout(timeout);
             port.removeListener("data", onData);
-
-            port.close(() => {
-              resolve(true);
-            });
+            port.close(() => resolve(true));
           }
         };
 
         port.on("data", onData);
-
         port.on("error", (error) => {
           console.error(`Validation error on ${devicePath}:`, error);
           clearTimeout(timeout);
@@ -218,10 +210,6 @@ export class DeviceService extends EventEmitter {
         });
       });
     });
-  }
-
-  public async testDeviceConnection(devicePath: string): Promise<boolean> {
-    return this.validateDevice(devicePath);
   }
 
   /**
@@ -238,22 +226,18 @@ export class DeviceService extends EventEmitter {
       });
 
       await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error("Connection timeout"));
-        }, this.VALIDATION_TIMEOUT_MS);
+        const timeout = setTimeout(
+          () => reject(new Error("Connection timeout")),
+          this.VALIDATION_TIMEOUT_MS
+        );
 
         port.open((err) => {
           clearTimeout(timeout);
-          if (err) {
-            reject(err);
-          } else {
-            resolve();
-          }
+          err ? reject(err) : resolve();
         });
       });
 
       this.activeConnection = port;
-
       this.setupDeviceDataHandler(port);
 
       port.on("error", (error) => {
@@ -281,11 +265,11 @@ export class DeviceService extends EventEmitter {
    * Disconnect from the current active connection
    */
   private disconnectFromCurrentDevice(): void {
-    if (this.activeConnection && this.activeConnection.isOpen) {
+    if (this.activeConnection?.isOpen) {
       this.activeConnection.close();
-      this.activeConnection = null;
-      this.dataBuffer = "";
     }
+    this.activeConnection = null;
+    this.dataBuffer = "";
   }
 
   /**
@@ -293,13 +277,6 @@ export class DeviceService extends EventEmitter {
    */
   public getActiveConnection(): SerialPort | null {
     return this.activeConnection;
-  }
-
-  /**
-   * Check if there's an active connection
-   */
-  public hasActiveConnection(): boolean {
-    return this.activeConnection !== null && this.activeConnection.isOpen;
   }
 
   // ===========================================
@@ -316,13 +293,20 @@ export class DeviceService extends EventEmitter {
       const dataStr = data.toString();
       this.dataBuffer += dataStr;
 
+      console.log(this.dataBuffer);
+
       if (this.dataBuffer.includes("NFC_DETECTED")) {
         const nfcData = dataStr.split("DATA:")[1];
 
         if (nfcData) {
+          this.dataBuffer = "";
           this.lastCartridgeData = nfcData;
           this.emit("cartridgeDetected", nfcData);
         }
+      } else if (this.dataBuffer.includes("NFC_REMOVED")) {
+        this.dataBuffer = "";
+        this.lastCartridgeData = null;
+        this.emit("cartridgeRemoved");
       }
     });
   }
@@ -335,17 +319,14 @@ export class DeviceService extends EventEmitter {
    * Send a command to the connected device
    */
   public async sendCommand(command: string): Promise<void> {
-    if (!this.activeConnection || !this.activeConnection.isOpen) {
+    if (!this.activeConnection?.isOpen) {
       throw new Error("No active device connection");
     }
 
     return new Promise((resolve, reject) => {
-      this.activeConnection!.write(command + "\n", (error: any) => {
-        if (error) {
-          reject(error);
-        } else {
-          resolve();
-        }
+      this.activeConnection!.write(command + "\n", (error) => {
+        if (error) reject(error);
+        else resolve();
       });
     });
   }
@@ -361,31 +342,19 @@ export class DeviceService extends EventEmitter {
    * Get the currently connected device path
    */
   public getConnectedDevice(): string | null {
-    if (this.activeConnection && this.activeConnection.isOpen) {
-      return this.activeConnection.path;
-    }
-    return null;
+    return this.activeConnection?.isOpen ? this.activeConnection.path : null;
   }
 
   /**
    * Check if a device is connected
    */
   public hasConnectedDevice(): boolean {
-    return this.hasActiveConnection();
+    return this.activeConnection !== null && this.activeConnection.isOpen;
   }
 
-  public hasSelectedDevice(): boolean {
-    return this.selectedDevice !== null;
-  }
-
-  public getDetectedDevices(): DeviceInfo[] {
-    return Array.from(this.detectedDevices.values());
-  }
-
-  public hasConnectedDevices(): boolean {
-    return this.detectedDevices.size > 0;
-  }
-
+  /**
+   * Get the selected device
+   */
   public getSelectedDevice(): DeviceInfo | null {
     return this.selectedDevice;
   }
