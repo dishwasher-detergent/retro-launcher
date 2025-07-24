@@ -38,16 +38,11 @@ contextBridge.exposeInMainWorld("windowAPI", {
 
 // Expose device detection API
 contextBridge.exposeInMainWorld("deviceApi", {
-  getDevices: () => ipcRenderer.invoke("get-devices"),
-  hasDevices: () => ipcRenderer.invoke("has-devices"),
   testDevice: (devicePath: string) =>
     ipcRenderer.invoke("test-device", devicePath),
-  startPolling: () => ipcRenderer.invoke("start-polling"),
-  stopPolling: () => ipcRenderer.invoke("stop-polling"),
   getSelectedDevice: () => ipcRenderer.invoke("get-selected-device"),
-  setSelectedDevice: (device: any) =>
-    ipcRenderer.invoke("set-selected-device", device),
-  hasSelectedDevice: () => ipcRenderer.invoke("has-selected-device"),
+  hasConnectedDevice: () => ipcRenderer.invoke("has-connected-device"),
+  getConnectedDevice: () => ipcRenderer.invoke("get-connected-device"),
 
   // Event listeners
   onDeviceConnected: (callback: (device: any) => void) => {
@@ -74,13 +69,6 @@ contextBridge.exposeInMainWorld("cartridgeApi", {
   getLastCartridge: () => ipcRenderer.invoke("get-last-cartridge"),
   sendCommand: (command: string) =>
     ipcRenderer.invoke("send-cartridge-command", command),
-  requestLastNFC: () => ipcRenderer.invoke("request-last-nfc"),
-  writeToCartridge: (data: string) =>
-    ipcRenderer.invoke("write-to-cartridge", data),
-  hasConnectedDevice: () =>
-    ipcRenderer.invoke("has-connected-cartridge-device"),
-  getConnectedDevice: () =>
-    ipcRenderer.invoke("get-connected-cartridge-device"),
 
   // Event listeners
   onCartridgeDetected: (callback: (cartridge: any) => void) => {

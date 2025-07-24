@@ -71,18 +71,6 @@ export class DeviceService extends EventEmitter {
     }
   }
 
-  public getDetectedDevices(): DeviceInfo[] {
-    return Array.from(this.detectedDevices.values());
-  }
-
-  public hasConnectedDevices(): boolean {
-    return this.detectedDevices.size > 0;
-  }
-
-  public getSelectedDevice(): DeviceInfo | null {
-    return this.selectedDevice;
-  }
-
   public setSelectedDevice(device: DeviceInfo | null): void {
     this.selectedDevice = device;
 
@@ -93,10 +81,6 @@ export class DeviceService extends EventEmitter {
     }
 
     this.emit("selectedDeviceChanged", device);
-  }
-
-  public hasSelectedDevice(): boolean {
-    return this.selectedDevice !== null;
   }
 
   private async scanForDevices(): Promise<void> {
@@ -367,20 +351,6 @@ export class DeviceService extends EventEmitter {
   }
 
   /**
-   * Request the last scanned NFC data from the selected device
-   */
-  public async requestLastNFC(): Promise<void> {
-    return this.sendCommand("GET_LAST_NFC");
-  }
-
-  /**
-   * Write data to an NFC card via the selected device (firmware expects WRITE_DATA:<data>)
-   */
-  public async writeToCartridge(data: string): Promise<void> {
-    return this.sendCommand(`WRITE_DATA:${data}`);
-  }
-
-  /**
    * Get the last detected cartridge data
    */
   public getLastCartridge(): string | null {
@@ -402,6 +372,22 @@ export class DeviceService extends EventEmitter {
    */
   public hasConnectedDevice(): boolean {
     return this.hasActiveConnection();
+  }
+
+  public hasSelectedDevice(): boolean {
+    return this.selectedDevice !== null;
+  }
+
+  public getDetectedDevices(): DeviceInfo[] {
+    return Array.from(this.detectedDevices.values());
+  }
+
+  public hasConnectedDevices(): boolean {
+    return this.detectedDevices.size > 0;
+  }
+
+  public getSelectedDevice(): DeviceInfo | null {
+    return this.selectedDevice;
   }
 
   /**

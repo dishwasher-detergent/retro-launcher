@@ -1,11 +1,7 @@
 import { app, BrowserWindow, globalShortcut, ipcMain, Menu } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  CartridgeData,
-  DeviceInfo,
-  DeviceService,
-} from "./services/device.service";
+import { DeviceInfo, DeviceService } from "./services/device.service";
 import { TrayService } from "./services/tray.service";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -154,7 +150,7 @@ function initializeServices() {
     trayService.updateDeviceStatus(deviceInfo ? 1 : 0);
   });
 
-  deviceService.on("cartridgeDetected", (cartridgeData: CartridgeData) => {
+  deviceService.on("cartridgeDetected", (cartridgeData: string) => {
     if (win) {
       win.webContents.send("cartridge-detected", cartridgeData);
     }
@@ -171,8 +167,6 @@ function initializeServices() {
       win.webContents.send("cartridge-connection-error", error);
     }
   });
-
-  setupIPCHandlers();
 }
 
 function setupIPCHandlers() {
@@ -287,42 +281,14 @@ function setupIPCHandlers() {
     return { success: false, error: "Device service not available" };
   });
 
-  ipcMain.handle("request-last-nfc", async () => {
-    if (deviceService) {
-      try {
-        await deviceService.requestLastNFC();
-        return { success: true };
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : "Unknown error";
-        return { success: false, error: errorMessage };
-      }
-    }
-    return { success: false, error: "Device service not available" };
-  });
-
-  ipcMain.handle("write-to-cartridge", async (_, data: string) => {
-    if (deviceService) {
-      try {
-        await deviceService.writeToCartridge(data);
-        return { success: true };
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : "Unknown error";
-        return { success: false, error: errorMessage };
-      }
-    }
-    return { success: false, error: "Device service not available" };
-  });
-
-  ipcMain.handle("has-connected-cartridge-device", () => {
+  ipcMain.handle("has-connected-device", () => {
     if (deviceService) {
       return deviceService.hasConnectedDevice();
     }
     return false;
   });
 
-  ipcMain.handle("get-connected-cartridge-device", () => {
+  ipcMain.handle("get-connected-device", () => {
     if (deviceService) {
       return deviceService.getConnectedDevice();
     }
@@ -385,6 +351,9 @@ app.on("will-quit", () => {
 app.whenReady().then(() => {
   // Remove the default application menu (File, Edit, View, etc.)
   Menu.setApplicationMenu(null);
+
+  // Setup IPC handlers first, before creating the window
+  setupIPCHandlers();
 
   createWindow();
   initializeServices();

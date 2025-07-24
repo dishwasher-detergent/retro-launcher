@@ -48,20 +48,14 @@ declare global {
       }>;
     };
     deviceApi: {
-      getDevices: () => Promise<DeviceInfo[]>;
-      hasDevices: () => Promise<boolean>;
       testDevice: (devicePath: string) => Promise<{
         success: boolean;
         responsive?: boolean;
         error?: string;
       }>;
-      startPolling: () => Promise<{ success: boolean; error?: string }>;
-      stopPolling: () => Promise<{ success: boolean; error?: string }>;
+      hasConnectedDevice: () => Promise<boolean>;
+      getConnectedDevice: () => Promise<string | null>;
       getSelectedDevice: () => Promise<DeviceInfo | null>;
-      setSelectedDevice: (
-        device: DeviceInfo | null
-      ) => Promise<{ success: boolean; error?: string }>;
-      hasSelectedDevice: () => Promise<boolean>;
       onDeviceConnected: (callback: (device: DeviceInfo) => void) => void;
       onDeviceDisconnected: (callback: (device: DeviceInfo) => void) => void;
       onSelectedDeviceChanged: (
@@ -71,19 +65,11 @@ declare global {
       removeAllListeners: (channel: string) => void;
     };
     cartridgeApi: {
-      getLastCartridge: () => Promise<CartridgeData | null>;
+      getLastCartridge: () => Promise<string | null>;
       sendCommand: (
         command: string
       ) => Promise<{ success: boolean; error?: string }>;
-      requestLastNFC: () => Promise<{ success: boolean; error?: string }>;
-      writeToCartridge: (
-        data: string
-      ) => Promise<{ success: boolean; error?: string }>;
-      hasConnectedDevice: () => Promise<boolean>;
-      getConnectedDevice: () => Promise<string | null>;
-      onCartridgeDetected: (
-        callback: (cartridge: CartridgeData) => void
-      ) => void;
+      onCartridgeDetected: (callback: (cartridge: string) => void) => void;
       onNFCError: (callback: (error: any) => void) => void;
       onConnectionError: (callback: (error: any) => void) => void;
       removeAllListeners: (channel: string) => void;

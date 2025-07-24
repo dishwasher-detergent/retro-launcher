@@ -6,8 +6,6 @@ export interface CartridgeStatus {
   connectedDevicePath: string | null;
   isLoading: boolean;
   error: string | null;
-  writeToCartridge: (data: string) => Promise<void>;
-  requestLastNFC: () => Promise<void>;
   sendCommand: (command: string) => Promise<void>;
 }
 
@@ -27,8 +25,8 @@ export function useCartridge(): CartridgeStatus {
           const [lastCartridge, hasConnectedDevice, connectedDevice] =
             await Promise.all([
               window.cartridgeApi.getLastCartridge(),
-              window.cartridgeApi.hasConnectedDevice(),
-              window.cartridgeApi.getConnectedDevice(),
+              window.deviceApi.hasConnectedDevice(),
+              window.deviceApi.getConnectedDevice(),
             ]);
 
           setLastCartridge(lastCartridge);
@@ -76,44 +74,6 @@ export function useCartridge(): CartridgeStatus {
     };
   }, []);
 
-  const writeToCartridge = async (data: string): Promise<void> => {
-    if (!window.cartridgeApi) {
-      throw new Error("Cartridge API not available");
-    }
-
-    try {
-      setError(null);
-      const result = await window.cartridgeApi.writeToCartridge(data);
-      if (!result.success) {
-        throw new Error(result.error || "Failed to write to cartridge");
-      }
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      setError(errorMessage);
-      throw error;
-    }
-  };
-
-  const requestLastNFC = async (): Promise<void> => {
-    if (!window.cartridgeApi) {
-      throw new Error("Cartridge API not available");
-    }
-
-    try {
-      setError(null);
-      const result = await window.cartridgeApi.requestLastNFC();
-      if (!result.success) {
-        throw new Error(result.error || "Failed to request NFC data");
-      }
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      setError(errorMessage);
-      throw error;
-    }
-  };
-
   const sendCommand = async (command: string): Promise<void> => {
     if (!window.cartridgeApi) {
       throw new Error("Cartridge API not available");
@@ -139,8 +99,6 @@ export function useCartridge(): CartridgeStatus {
     connectedDevicePath,
     isLoading,
     error,
-    writeToCartridge,
-    requestLastNFC,
     sendCommand,
   };
 }
