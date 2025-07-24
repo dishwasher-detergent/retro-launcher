@@ -56,20 +56,42 @@ void handleSerialCommands() {
         Serial.println("ERROR: No data provided to write");
         return;
       }
-      Serial.println("Present NFC card to write...");
-      unsigned long start = millis();
+      
       bool cardFound = false;
-      while (millis() - start < 8000) { // Wait up to 8 seconds
-        if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()) {
-          cardFound = true;
-          break;
+      
+      // First check if a card is already present and selected
+      if (lastCardPresent) {
+        // Try to communicate with the already present card
+        byte bufferATQA[2];
+        byte bufferSize = sizeof(bufferATQA);
+        
+        MFRC522::StatusCode result = rfid.PICC_WakeupA(bufferATQA, &bufferSize);
+        if (result == MFRC522::STATUS_OK || result == MFRC522::STATUS_COLLISION) {
+          if (rfid.PICC_ReadCardSerial()) {
+            cardFound = true;
+            Serial.println("Writing to already present NFC card...");
+          }
         }
-        delay(50);
       }
+      
+      // If no card was already present, wait for a new one
+      if (!cardFound) {
+        Serial.println("Present NFC card to write...");
+        unsigned long start = millis();
+        while (millis() - start < 8000) { // Wait up to 8 seconds
+          if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()) {
+            cardFound = true;
+            break;
+          }
+          delay(50);
+        }
+      }
+      
       if (!cardFound) {
         Serial.println("ERROR: No NFC card detected");
         return;
       }
+      
       bool writeOk = writeNtagTextRecord(4, dataToWrite);
       if (writeOk) {
         Serial.println("WRITE_OK");
@@ -89,34 +111,58 @@ void handleSerialCommands() {
  * Write a simple NDEF text record to NTAG215 starting at a given page
  */
 bool writeNtagTextRecord(byte startPage, const String &text) {
-  // NDEF text record header: 0x03, length, 0xD1, 0x01, payloadLen, 0x54, langLen, 'en', <text>, 0xFE
+  // NDEF text record header for longer data
   byte langLen = 2;
   String lang = "en";
   byte textLen = text.length();
   byte payloadLen = 1 + langLen + textLen; // 1 byte status + lang + text
-  byte ndefLen = 7 + textLen; // header + text
-  if (ndefLen > 48) return false; // Too long for typical NTAG215 user area
+  
+  // Calculate total NDEF message length
+  int ndefMessageLen = 5 + langLen + textLen; // D1 01 <payloadLen> 54 <langLen> <lang> <text>
+  
+  if (ndefMessageLen > 480) return false; // NTAG215 has ~504 bytes user area, leave some buffer
 
-  byte ndef[48] = {0};
-  ndef[0] = 0x03; // NDEF TLV
-  ndef[1] = 5 + langLen + textLen; // length of NDEF message
-  ndef[2] = 0xD1; // NDEF header (MB/ME/SR/TNF=1)
-  ndef[3] = 0x01; // type length
-  ndef[4] = 1 + langLen + textLen; // payload length
-  ndef[5] = 0x54; // 'T' (text record)
-  ndef[6] = langLen; // language code length
-  ndef[7] = 'e';
-  ndef[8] = 'n';
-  for (byte i = 0; i < textLen; i++) {
-    ndef[9 + i] = text[i];
+  byte ndef[500] = {0}; // Increased buffer size for larger data
+  int ndefIndex = 0;
+  
+  // NDEF TLV header
+  ndef[ndefIndex++] = 0x03; // NDEF TLV
+  
+  // Handle length field - use 3-byte format for lengths > 254
+  if (ndefMessageLen <= 254) {
+    ndef[ndefIndex++] = ndefMessageLen; // Single byte length
+  } else {
+    ndef[ndefIndex++] = 0xFF; // Extended length indicator
+    ndef[ndefIndex++] = (ndefMessageLen >> 8) & 0xFF; // High byte
+    ndef[ndefIndex++] = ndefMessageLen & 0xFF; // Low byte
   }
-  ndef[9 + textLen] = 0xFE; // NDEF terminator
+  
+  // NDEF Record header
+  ndef[ndefIndex++] = 0xD1; // NDEF header (MB/ME/SR/TNF=1)
+  ndef[ndefIndex++] = 0x01; // type length
+  ndef[ndefIndex++] = payloadLen; // payload length
+  ndef[ndefIndex++] = 0x54; // 'T' (text record)
+  ndef[ndefIndex++] = langLen; // language code length
+  ndef[ndefIndex++] = 'e';
+  ndef[ndefIndex++] = 'n';
+  
+  // Add the actual text data
+  for (int i = 0; i < textLen; i++) {
+    ndef[ndefIndex++] = text[i];
+  }
+  
+  ndef[ndefIndex++] = 0xFE; // NDEF terminator
 
   // Write 4 bytes per page
-  for (byte i = 0; i < (10 + textLen + 3) / 4; i++) {
+  int totalBytes = ndefIndex;
+  for (int i = 0; i < (totalBytes + 3) / 4; i++) {
     byte pageBuf[4];
     for (byte j = 0; j < 4; j++) {
-      pageBuf[j] = ndef[i * 4 + j];
+      if (i * 4 + j < totalBytes) {
+        pageBuf[j] = ndef[i * 4 + j];
+      } else {
+        pageBuf[j] = 0x00; // Pad with zeros
+      }
     }
     MFRC522::StatusCode status = rfid.MIFARE_Ultralight_Write(startPage + i, pageBuf, 4);
     if (status != MFRC522::STATUS_OK) {
@@ -201,12 +247,14 @@ void handleCardDetected() {
 
   String nfcData = readNtagData(4);
   
-  String data = "UID:" + nfcUid;
+  Serial.println("NFC_DATA_START");
+  Serial.print("UID:");
+  Serial.println(nfcUid);
   if (nfcData.length() > 0) {
-    data += ",DATA:" + nfcData;
+    Serial.print("DATA:");
+    Serial.println(nfcData);
   }
-
-  Serial.println("NFC_DETECTED:" + data);
+  Serial.println("NFC_DATA_END");
 }
 
 /**
@@ -223,73 +271,74 @@ String readNtagData(byte startPage) {
     return "";
   }
   
-  // Look for NDEF structure
-  // Typical NDEF starts with: 0x03 (NDEF Message TLV), length, then record
-  // We need to skip the NDEF headers and find the actual text payload
+  // Look for NDEF TLV (0x03)
+  int ndefStart = -1;
+  int ndefLength = 0;
   
-  bool foundNdefStart = false;
-  byte payloadStart = 0;
-  byte payloadLength = 0;
+  for (int i = 0; i < 16; i++) {
+    if (buffer[i] == 0x03) { // Found NDEF TLV
+      ndefStart = i;
+      // Check if it's extended length format
+      if (i + 1 < 16) {
+        if (buffer[i + 1] == 0xFF) {
+          // Extended length format: 03 FF <high byte> <low byte>
+          if (i + 3 < 16) {
+            ndefLength = (buffer[i + 2] << 8) | buffer[i + 3];
+            ndefStart = i + 4; // Start of actual NDEF message
+          }
+        } else {
+          // Single byte length format: 03 <length>
+          ndefLength = buffer[i + 1];
+          ndefStart = i + 2; // Start of actual NDEF message
+        }
+      }
+      break;
+    }
+  }
   
-  // Search through the first few reads for NDEF text record
-  for (byte page = startPage; page < startPage + 12; page += 4) {
+  if (ndefStart == -1) {
+    return ""; // No NDEF found
+  }
+  
+  // Now read the NDEF message starting from ndefStart
+  // We need to read across multiple pages to get all the data
+  String fullData = "";
+  int bytesRead = 0;
+  int targetBytes = min(ndefLength, 480); // Don't read more than reasonable
+  
+  for (byte page = startPage; page < startPage + 120 && bytesRead < targetBytes; page += 4) {
     status = rfid.MIFARE_Read(page, buffer, &size);
     if (status != MFRC522::STATUS_OK) {
       break;
     }
     
-    // Look for text record pattern in the 16 bytes
-    for (byte i = 0; i < 13; i++) {  // Leave room to check ahead
-      // Look for NDEF text record: 0xD1 0x01 <length> 0x54 <lang_len> <lang> <text>
-      // Or simple text pattern: 0x54 0x02 'e' 'n' <text>
-      if (buffer[i] == 0x54 && i + 3 < 16) {  // 'T' record type
-        byte langLen = buffer[i + 1];
-        if (langLen <= 5 && i + 2 + langLen < 16) {  // Reasonable language length
-          payloadStart = i + 2 + langLen;  // Skip 'T', lang length, and language code
-          foundNdefStart = true;
-          
-          // Extract text data starting from payloadStart
-          for (byte j = payloadStart; j < 16; j++) {
-            if (buffer[j] == 0x00 || buffer[j] == 0xFE) {
-              // Stop at null or NDEF terminator
-              return data;
-            }
-            if (buffer[j] >= 0x20 && buffer[j] <= 0x7E) {
-              data += (char)buffer[j];
-            }
-          }
-          
-          // If we need more data, continue reading next pages
-          if (data.length() > 0) {
-            // Read additional pages if needed
-            for (byte nextPage = page + 4; nextPage < 135 && data.length() < 50; nextPage += 4) {
-              status = rfid.MIFARE_Read(nextPage, buffer, &size);
-              if (status != MFRC522::STATUS_OK) break;
-              
-              for (byte k = 0; k < 16; k++) {
-                if (buffer[k] == 0x00 || buffer[k] == 0xFE) {
-                  return data;
-                }
-                if (buffer[k] >= 0x20 && buffer[k] <= 0x7E) {
-                  data += (char)buffer[k];
-                }
-              }
-            }
-          }
-          return data;
-        }
+    for (int i = 0; i < 16 && bytesRead < targetBytes; i++) {
+      int globalIndex = (page - startPage) * 4 + i;
+      if (globalIndex >= ndefStart && globalIndex < ndefStart + ndefLength) {
+        fullData += (char)buffer[i];
+        bytesRead++;
       }
     }
   }
   
-  // If no NDEF structure found, fall back to simple text extraction
-  for (byte page = startPage; page < startPage + 8; page += 4) {
-    status = rfid.MIFARE_Read(page, buffer, &size);
-    if (status != MFRC522::STATUS_OK) break;
-    
-    for (byte i = 0; i < 16; i++) {
-      if (buffer[i] >= 0x20 && buffer[i] <= 0x7E) {
-        data += (char)buffer[i];
+  // Now parse the NDEF message to extract the text payload
+  // Look for text record: D1 01 <payload_len> 54 <lang_len> <lang> <text>
+  for (int i = 0; i < fullData.length() - 5; i++) {
+    if (fullData[i] == (char)0xD1 && fullData[i+1] == (char)0x01 && fullData[i+3] == (char)0x54) {
+      int payloadLen = (byte)fullData[i+2];
+      int langLen = (byte)fullData[i+4];
+      int textStart = i + 5 + langLen;
+      
+      if (textStart < fullData.length()) {
+        // Extract the text, stopping at terminator or payload end
+        for (int j = textStart; j < fullData.length() && j < textStart + payloadLen - 1 - langLen; j++) {
+          char c = fullData[j];
+          if (c == (char)0xFE || c == (char)0x00) break; // Stop at terminator
+          if (c >= 0x20 && c <= 0x7E) { // Printable ASCII
+            data += c;
+          }
+        }
+        return data;
       }
     }
   }

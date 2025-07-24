@@ -38,6 +38,7 @@ const CartridgeSchema = z.object({
 
 export function Writer() {
   const [jsonOutput, setJsonOutput] = useState<string | null>(null);
+  const [base64Output, setBase64Output] = useState<string | null>(null);
   const [showOutput, setShowOutput] = useState<boolean>(false);
   const [sizeWarning, setSizeWarning] = useState<string | null>(null);
   const iconInputRef = useRef<HTMLInputElement>(null);
@@ -60,6 +61,13 @@ export function Writer() {
     return new Blob([jsonString]).size;
   };
 
+  // Calculate the size of the base64 encoded JSON in bytes
+  const calculateBase64Size = (data: NFCCardData): number => {
+    const jsonString = JSON.stringify(data);
+    const base64String = btoa(jsonString);
+    return new Blob([base64String]).size;
+  };
+
   // Check if current data would fit on NFC215
   const checkSize = () => {
     const currentData: NFCCardData = {
@@ -68,16 +76,18 @@ export function Writer() {
       pathName: watchedValues.pathName || "",
     };
 
-    const size = calculateJsonSize(currentData);
+    const base64Size = calculateBase64Size(currentData);
 
-    if (size > NFC215_MAX_BYTES) {
+    if (base64Size > NFC215_MAX_BYTES) {
       setSizeWarning(
-        `Data size: ${size} bytes (exceeds NFC215 limit of ${NFC215_MAX_BYTES} bytes)`
+        `Base64 data size: ${base64Size} bytes (exceeds NFC215 limit of ${NFC215_MAX_BYTES} bytes)`
       );
       return false;
     } else {
       setSizeWarning(
-        `Data size: ${size} bytes (${NFC215_MAX_BYTES - size} bytes remaining)`
+        `Base64 data size: ${base64Size} bytes (${
+          NFC215_MAX_BYTES - base64Size
+        } bytes remaining)`
       );
       return true;
     }
@@ -217,14 +227,17 @@ export function Writer() {
     };
 
     // Check size before generating output
-    const size = calculateJsonSize(cardData);
+    const base64Size = calculateBase64Size(cardData);
 
-    if (size > NFC215_MAX_BYTES) {
+    if (base64Size > NFC215_MAX_BYTES) {
       return;
     }
 
     const jsonString = JSON.stringify(cardData, null, 2);
+    const base64String = btoa(JSON.stringify(cardData));
+
     setJsonOutput(jsonString);
+    setBase64Output(base64String);
     setShowOutput(true);
   };
 
@@ -235,6 +248,18 @@ export function Writer() {
 
     try {
       await navigator.clipboard.writeText(jsonOutput);
+    } catch (error) {
+      console.error("Failed to copy to clipboard:", error);
+    }
+  };
+
+  const copyBase64ToClipboard = async () => {
+    if (!base64Output) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(base64Output);
     } catch (error) {
       console.error("Failed to copy to clipboard:", error);
     }
@@ -393,6 +418,7 @@ export function Writer() {
               form.reset();
               form.clearErrors();
               setJsonOutput(null);
+              setBase64Output(null);
               setShowOutput(false);
 
               if (fileInputRef.current) {
@@ -407,29 +433,54 @@ export function Writer() {
           </Button>
         </div>
         {showOutput && (
-          <FormItem>
-            <FormLabel>Generated JSON Data</FormLabel>
-            <div className="relative">
-              <textarea
-                value={jsonOutput || ""}
-                readOnly
-                className="bg-background w-full h-32 p-3 text-sm font-mono border rounded-md resize-none"
-                placeholder="Generated JSON will appear here..."
-              />
-              <Button
-                onClick={copyToClipboard}
-                size="icon"
-                className="absolute top-2 right-2"
-                type="button"
-              >
-                <Copy className="size-4" />
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Copy this JSON data and paste it to your NFC card using your
-              preferred NFC writing tool.
-            </p>
-          </FormItem>
+          <>
+            <FormItem>
+              <FormLabel>Generated JSON Data</FormLabel>
+              <div className="relative">
+                <textarea
+                  value={jsonOutput || ""}
+                  readOnly
+                  className="bg-background w-full h-32 p-3 text-sm font-mono border rounded-md resize-none"
+                  placeholder="Generated JSON will appear here..."
+                />
+                <Button
+                  onClick={copyToClipboard}
+                  size="icon"
+                  className="absolute top-2 right-2"
+                  type="button"
+                >
+                  <Copy className="size-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Human-readable JSON format for debugging and manual use.
+              </p>
+            </FormItem>
+            <FormItem>
+              <FormLabel>Generated Base64 Data</FormLabel>
+              <div className="relative">
+                <textarea
+                  value={base64Output || ""}
+                  readOnly
+                  className="bg-background w-full h-32 p-3 text-sm font-mono border rounded-md resize-none"
+                  placeholder="Generated Base64 will appear here..."
+                />
+                <Button
+                  onClick={copyBase64ToClipboard}
+                  size="icon"
+                  className="absolute top-2 right-2"
+                  type="button"
+                >
+                  <Copy className="size-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Base64 encoded data optimized for NFC card storage. Copy this
+                data and paste it to your NFC card using your preferred NFC
+                writing tool.
+              </p>
+            </FormItem>
+          </>
         )}
       </form>
     </Form>

@@ -50,9 +50,7 @@ export class DeviceService extends EventEmitter {
     this.startPolling();
   }
 
-  // ===========================================
-  // DEVICE DETECTION METHODS
-  // ===========================================
+  // #region Device Management Methods
 
   public startPolling(): void {
     if (this.pollingInterval) return;
@@ -279,9 +277,9 @@ export class DeviceService extends EventEmitter {
     return this.activeConnection;
   }
 
-  // ===========================================
-  // NFC/CARTRIDGE METHODS
-  // ===========================================
+  // #endregion
+
+  // #region NFC/Cartridge Methods
 
   /**
    * Setup listeners for serial port data
@@ -293,13 +291,41 @@ export class DeviceService extends EventEmitter {
       const dataStr = data.toString();
       this.dataBuffer += dataStr;
 
-      if (this.dataBuffer.includes("NFC_DETECTED")) {
-        const nfcData = dataStr.split("DATA:")[1];
+      if (
+        this.dataBuffer.includes("NFC_DATA_START") &&
+        this.dataBuffer.includes("NFC_DATA_END")
+      ) {
+        const startIndex = this.dataBuffer.indexOf("NFC_DATA_START");
+        const endIndex = this.dataBuffer.indexOf("NFC_DATA_END");
 
-        if (nfcData) {
-          this.dataBuffer = "";
-          this.lastCartridgeData = nfcData;
-          this.emit("cartridgeDetected", nfcData);
+        if (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
+          const nfcBlock = this.dataBuffer.substring(
+            startIndex + "NFC_DATA_START".length,
+            endIndex
+          );
+
+          const lines = nfcBlock.trim().split("\n");
+          let nfcData = "";
+
+          for (const line of lines) {
+            const trimmedLine = line.trim();
+
+            if (trimmedLine.startsWith("DATA:")) {
+              nfcData = trimmedLine.substring(5);
+            }
+          }
+
+          this.dataBuffer = this.dataBuffer.substring(
+            endIndex + "NFC_DATA_END".length
+          );
+
+          if (nfcData) {
+            this.lastCartridgeData = nfcData;
+            this.emit("cartridgeDetected", nfcData);
+          } else {
+            // Card detected but no data
+            this.emit("cartridgeDetected", null);
+          }
         }
       } else if (this.dataBuffer.includes("NFC_REMOVED")) {
         this.dataBuffer = "";
@@ -309,9 +335,9 @@ export class DeviceService extends EventEmitter {
     });
   }
 
-  // ===========================================
-  // SHARED COMMUNICATION METHODS
-  // ===========================================
+  // #endregion
+
+  // #region Shared
 
   /**
    * Send a command to the connected device
