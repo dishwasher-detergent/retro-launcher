@@ -10,9 +10,6 @@
 
 MFRC522 rfid(SS_PIN, RST_PIN);
 
-// Global variables
-String lastNfcData = "";
-
 void setup() {
   Serial.begin(115200);
   
@@ -24,7 +21,7 @@ void setup() {
   SPI.begin();
   rfid.PCD_Init();
   
-  Serial.println("Commands: WHO_ARE_YOU, GET_LAST_NFC, WRITE_DATA:<data>");
+  Serial.println("Commands: WHO_ARE_YOU, WRITE_DATA:<data>");
 }
 
 void loop() {
@@ -46,13 +43,6 @@ void handleSerialCommands() {
     
     if (command == "WHO_ARE_YOU") {
       Serial.println(DEVICE_ID);
-    }
-    else if (command == "GET_LAST_NFC") {
-      if (lastNfcData.length() > 0) {
-        Serial.println("NFC_DATA:" + lastNfcData);
-      } else {
-        Serial.println("NO_NFC_DATA");
-      }
     }
     else if (command.startsWith("WRITE_DATA:")) {
       String dataToWrite = command.substring(11);
@@ -154,12 +144,12 @@ void checkForNfcCard() {
 
   String nfcData = readNtagData(4);
   
-  lastNfcData = "UID:" + nfcUid;
+  String data = "UID:" + nfcUid;
   if (nfcData.length() > 0) {
-    lastNfcData += ",DATA:" + nfcData;
+    data += ",DATA:" + nfcData;
   }
 
-  Serial.println("NFC_DETECTED:" + lastNfcData);
+  Serial.println("NFC_DETECTED:" + data);
 
   rfid.PICC_HaltA();
   rfid.PCD_StopCrypto1();
