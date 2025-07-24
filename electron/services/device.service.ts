@@ -293,8 +293,6 @@ export class DeviceService extends EventEmitter {
       const dataStr = data.toString();
       this.dataBuffer += dataStr;
 
-      console.log(this.dataBuffer);
-
       if (this.dataBuffer.includes("NFC_DETECTED")) {
         const nfcData = dataStr.split("DATA:")[1];
 
