@@ -1,49 +1,15 @@
-import { Preview } from "@/components/preview";
-import { useEffect, useState } from "react";
-import { NFCCardData } from "../types/electron";
+import { useCartridge } from "@/hooks/cartridge.hook";
+import { decodeNdefTextRecord } from "@/lib/utils";
 
 export function HomePage() {
-  const [currentCard, setCurrentCard] = useState<NFCCardData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    initializeData();
-
-    if (window.nfcAPI) {
-      window.nfcAPI.onCardDetected((cardData: NFCCardData) => {
-        setCurrentCard(cardData);
-      });
-    }
-
-    return () => {
-      // Cleanup listeners
-      if (window.nfcAPI) {
-        window.nfcAPI.removeAllListeners("nfc-card-data");
-      }
-    };
-  }, []);
-
-  const initializeData = async () => {
-    if (window.nfcAPI) {
-      try {
-        const card = await window.nfcAPI.getCurrentCard();
-        setCurrentCard(card);
-      } catch (error) {
-        console.error("Failed to initialize data:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    } else {
-      setIsLoading(false);
-    }
-  };
+  const { lastCartridge, isLoading } = useCartridge();
 
   if (isLoading) {
     return (
       <div className="bg-background text-foreground flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p>Loading NFC Reader...</p>
+          <p>Loading...</p>
         </div>
       </div>
     );
@@ -53,7 +19,7 @@ export function HomePage() {
     <>
       <h1 className="text-2xl font-bold mb-4">Current Cartridge</h1>
       <div>
-        {currentCard ? (
+        {/* {currentCard ? (
           <Preview
             name={currentCard.name}
             icon={currentCard.icon || null}
@@ -64,7 +30,8 @@ export function HomePage() {
             <p className="font-semibold">No cartridge detected</p>
             <p className="text-sm">Place a cartridge in the reader.</p>
           </div>
-        )}
+        )} */}
+        <pre>{decodeNdefTextRecord(lastCartridge?.blocks || {})}</pre>
       </div>
     </>
   );

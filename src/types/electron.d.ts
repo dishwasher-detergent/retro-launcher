@@ -25,6 +25,13 @@ export interface DeviceInfo {
   productId?: string;
 }
 
+export interface CartridgeData {
+  uid: string;
+  blocks: { [blockNumber: string]: string };
+  timestamp: number;
+  devicePath: string;
+}
+
 declare global {
   interface Window {
     ipcRenderer: {
@@ -57,9 +64,35 @@ declare global {
       }>;
       startPolling: () => Promise<{ success: boolean; error?: string }>;
       stopPolling: () => Promise<{ success: boolean; error?: string }>;
+      getSelectedDevice: () => Promise<DeviceInfo | null>;
+      setSelectedDevice: (
+        device: DeviceInfo | null
+      ) => Promise<{ success: boolean; error?: string }>;
+      hasSelectedDevice: () => Promise<boolean>;
       onDeviceConnected: (callback: (device: DeviceInfo) => void) => void;
       onDeviceDisconnected: (callback: (device: DeviceInfo) => void) => void;
+      onSelectedDeviceChanged: (
+        callback: (device: DeviceInfo | null) => void
+      ) => void;
       onScanError: (callback: (error: any) => void) => void;
+      removeAllListeners: (channel: string) => void;
+    };
+    cartridgeApi: {
+      getLastCartridge: () => Promise<CartridgeData | null>;
+      sendCommand: (
+        command: string
+      ) => Promise<{ success: boolean; error?: string }>;
+      requestLastNFC: () => Promise<{ success: boolean; error?: string }>;
+      writeToCartridge: (
+        data: string
+      ) => Promise<{ success: boolean; error?: string }>;
+      hasConnectedDevice: () => Promise<boolean>;
+      getConnectedDevice: () => Promise<string | null>;
+      onCartridgeDetected: (
+        callback: (cartridge: CartridgeData) => void
+      ) => void;
+      onNFCError: (callback: (error: any) => void) => void;
+      onConnectionError: (callback: (error: any) => void) => void;
       removeAllListeners: (channel: string) => void;
     };
     windowAPI: {

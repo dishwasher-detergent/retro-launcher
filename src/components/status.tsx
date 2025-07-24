@@ -3,11 +3,11 @@ import { LucideRefreshCw } from "lucide-react";
 import { Button } from "./ui/button";
 
 export function StatusIndicator() {
-  const { devices, handleRefreshDevices } = useStatus();
+  const { selectedDevice, handleTestDevice } = useStatus();
 
   return (
     <div className="no-drag h-full flex items-center">
-      {devices.length > 0 ? (
+      {selectedDevice ? (
         <div className="flex flex-row gap-1 items-center no-drag">
           <div className="size-2 rounded-full animate-pulse bg-emerald-600" />
           <p className="font-semibold text-xs text-foreground">Connected</p>
@@ -16,7 +16,7 @@ export function StatusIndicator() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={handleRefreshDevices}
+          onClick={async () => handleTestDevice}
           title="Reconnect"
           className="h-6 text-xs"
         >

@@ -4,7 +4,7 @@ import { LucideBrushCleaning } from "lucide-react";
 import { useLogsContext } from "../contexts/logs-context";
 
 export function LogsPage() {
-  const { devices } = useStatus();
+  const { selectedDevice } = useStatus();
   const { logs, clearLogs } = useLogsContext();
 
   return (
@@ -37,19 +37,20 @@ export function LogsPage() {
           </p>
         )}
       </div>
-      {devices.length > 0 && (
+      {selectedDevice ? (
         <div className="mt-4">
           <h2 className="text-lg font-semibold">Connected Devices</h2>
           <ul className="list-disc pl-5 mt-2">
-            {devices.map((device) => (
-              <li key={device.path} className="text-sm text-muted-foreground">
-                {device.path} - {device.manufacturer || "Unknown Manufacturer"}
-              </li>
-            ))}
+            <li
+              key={selectedDevice.path}
+              className="text-sm text-muted-foreground"
+            >
+              {selectedDevice.path} -{" "}
+              {selectedDevice.manufacturer || "Unknown Manufacturer"}
+            </li>
           </ul>
         </div>
-      )}
-      {devices.length === 0 && (
+      ) : (
         <p className="text-sm text-muted-foreground mt-2">
           No devices connected.
         </p>

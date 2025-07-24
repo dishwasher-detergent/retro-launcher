@@ -2,9 +2,10 @@ import { app, BrowserWindow, globalShortcut, ipcMain, Menu } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  DeviceDetectionService,
+  CartridgeData,
   DeviceInfo,
-} from "./services/device-detection.service";
+  DeviceService,
+} from "./services/device.service";
 import { TrayService } from "./services/tray.service";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -12,7 +13,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Global variables
 let win: BrowserWindow | null;
 let trayService: TrayService;
-let deviceDetectionService: DeviceDetectionService;
+let deviceService: DeviceService;
 let isQuiting = false;
 
 // The built directory structure
@@ -123,32 +124,51 @@ function initializeServices() {
 
   trayService.initializeTray(process.env.VITE_PUBLIC || "");
 
-  deviceDetectionService = new DeviceDetectionService();
+  deviceService = new DeviceService();
 
-  const initialDeviceCount = deviceDetectionService.getDetectedDevices().length;
-  trayService.updateDeviceStatus(initialDeviceCount);
+  const initialSelectedDevice = deviceService.getSelectedDevice();
+  trayService.updateDeviceStatus(initialSelectedDevice ? 1 : 0);
 
-  deviceDetectionService.on("deviceConnected", (deviceInfo: DeviceInfo) => {
+  deviceService.on("deviceConnected", (deviceInfo: DeviceInfo) => {
     if (win) {
       win.webContents.send("device-connected", deviceInfo);
     }
-
-    const deviceCount = deviceDetectionService.getDetectedDevices().length;
-    trayService.updateDeviceStatus(deviceCount);
   });
 
-  deviceDetectionService.on("deviceDisconnected", (deviceInfo: DeviceInfo) => {
+  deviceService.on("deviceDisconnected", (deviceInfo: DeviceInfo) => {
     if (win) {
       win.webContents.send("device-disconnected", deviceInfo);
     }
-
-    const deviceCount = deviceDetectionService.getDetectedDevices().length;
-    trayService.updateDeviceStatus(deviceCount);
   });
 
-  deviceDetectionService.on("scanError", (error: any) => {
+  deviceService.on("scanError", (error: any) => {
     if (win) {
       win.webContents.send("device-scan-error", error);
+    }
+  });
+
+  deviceService.on("selectedDeviceChanged", (deviceInfo: DeviceInfo | null) => {
+    if (win) {
+      win.webContents.send("selected-device-changed", deviceInfo);
+    }
+    trayService.updateDeviceStatus(deviceInfo ? 1 : 0);
+  });
+
+  deviceService.on("cartridgeDetected", (cartridgeData: CartridgeData) => {
+    if (win) {
+      win.webContents.send("cartridge-detected", cartridgeData);
+    }
+  });
+
+  deviceService.on("nfcError", (error: any) => {
+    if (win) {
+      win.webContents.send("nfc-error", error);
+    }
+  });
+
+  deviceService.on("connectionError", (error: any) => {
+    if (win) {
+      win.webContents.send("cartridge-connection-error", error);
     }
   });
 
@@ -208,24 +228,10 @@ function setupIPCHandlers() {
     return false;
   });
 
-  ipcMain.handle("get-devices", () => {
-    if (deviceDetectionService) {
-      return deviceDetectionService.getDetectedDevices();
-    }
-    return [];
-  });
-
-  ipcMain.handle("has-devices", () => {
-    if (deviceDetectionService) {
-      return deviceDetectionService.hasConnectedDevices();
-    }
-    return false;
-  });
-
   ipcMain.handle("test-device", async (_, devicePath: string) => {
-    if (deviceDetectionService) {
+    if (deviceService) {
       try {
-        const isResponsive = await deviceDetectionService.testDeviceConnection(
+        const isResponsive = await deviceService.testDeviceConnection(
           devicePath
         );
         return { success: true, responsive: isResponsive };
@@ -235,23 +241,92 @@ function setupIPCHandlers() {
         return { success: false, error: errorMessage };
       }
     }
-    return { success: false, error: "Device detection service not available" };
+    return { success: false, error: "Device service not available" };
   });
 
-  ipcMain.handle("start-polling", () => {
-    if (deviceDetectionService) {
-      deviceDetectionService.startPolling();
-      return { success: true };
+  ipcMain.handle("get-selected-device", () => {
+    if (deviceService) {
+      return deviceService.getSelectedDevice();
     }
-    return { success: false, error: "Device detection service not available" };
+    return null;
   });
 
-  ipcMain.handle("stop-polling", () => {
-    if (deviceDetectionService) {
-      deviceDetectionService.stopPolling();
+  ipcMain.handle("set-selected-device", (_, deviceInfo: DeviceInfo | null) => {
+    if (deviceService) {
+      deviceService.setSelectedDevice(deviceInfo);
       return { success: true };
     }
-    return { success: false, error: "Device detection service not available" };
+    return { success: false, error: "Device service not available" };
+  });
+
+  ipcMain.handle("has-selected-device", () => {
+    if (deviceService) {
+      return deviceService.hasSelectedDevice();
+    }
+    return false;
+  });
+
+  ipcMain.handle("get-last-cartridge", () => {
+    if (deviceService) {
+      return deviceService.getLastCartridge();
+    }
+    return null;
+  });
+
+  ipcMain.handle("send-cartridge-command", async (_, command: string) => {
+    if (deviceService) {
+      try {
+        await deviceService.sendCommand(command);
+        return { success: true };
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        return { success: false, error: errorMessage };
+      }
+    }
+    return { success: false, error: "Device service not available" };
+  });
+
+  ipcMain.handle("request-last-nfc", async () => {
+    if (deviceService) {
+      try {
+        await deviceService.requestLastNFC();
+        return { success: true };
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        return { success: false, error: errorMessage };
+      }
+    }
+    return { success: false, error: "Device service not available" };
+  });
+
+  ipcMain.handle("write-to-cartridge", async (_, data: string) => {
+    if (deviceService) {
+      try {
+        await deviceService.writeToCartridge(data);
+        return { success: true };
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        return { success: false, error: errorMessage };
+      }
+    }
+    return { success: false, error: "Device service not available" };
+  });
+
+  ipcMain.handle("has-connected-cartridge-device", () => {
+    if (deviceService) {
+      return deviceService.hasConnectedDevice();
+    }
+    return false;
+  });
+
+  ipcMain.handle("get-connected-cartridge-device", () => {
+    if (deviceService) {
+      return deviceService.getConnectedDevice();
+    }
+    return null;
   });
 }
 
@@ -302,8 +377,8 @@ app.on("will-quit", () => {
     trayService.cleanup();
   }
 
-  if (deviceDetectionService) {
-    deviceDetectionService.destroy();
+  if (deviceService) {
+    deviceService.destroy();
   }
 });
 

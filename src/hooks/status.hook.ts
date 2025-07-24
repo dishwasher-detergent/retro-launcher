@@ -2,15 +2,14 @@ import { useEffect, useState } from "react";
 import { DeviceInfo } from "../types/electron";
 
 export interface Status {
-  devices: DeviceInfo[];
+  selectedDevice: DeviceInfo | null;
   isLoading: boolean;
   testingDevice: string | null;
   handleTestDevice: (devicePath: string) => Promise<void>;
-  handleRefreshDevices: () => Promise<void>;
 }
 
 export function useStatus(): Status {
-  const [devices, setDevices] = useState<DeviceInfo[]>([]);
+  const [selectedDevice, setSelectedDevice] = useState<DeviceInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [testingDevice, setTestingDevice] = useState<string | null>(null);
 
@@ -18,10 +17,10 @@ export function useStatus(): Status {
     const initializeDeviceStatus = async () => {
       if (window.deviceApi) {
         try {
-          const devices = await window.deviceApi.getDevices();
-          setDevices(devices);
+          const selectedDevice = await window.deviceApi.getSelectedDevice();
+          setSelectedDevice(selectedDevice);
         } catch (error) {
-          console.error("Failed to get devices:", error);
+          console.error("Failed to get selected device:", error);
         } finally {
           setIsLoading(false);
         }
@@ -31,26 +30,15 @@ export function useStatus(): Status {
     initializeDeviceStatus();
 
     if (window.deviceApi) {
-      // Set up event listeners
-      window.deviceApi.onDeviceConnected((device: DeviceInfo) => {
-        setDevices((prev) => {
-          const exists = prev.some((d) => d.path === device.path);
-          if (!exists) {
-            return [...prev, device];
-          }
-          return prev;
-        });
-      });
-
-      window.deviceApi.onDeviceDisconnected((device: DeviceInfo) => {
-        setDevices((prev) => prev.filter((d) => d.path !== device.path));
+      // Set up event listener for selected device changes
+      window.deviceApi.onSelectedDeviceChanged((device: DeviceInfo | null) => {
+        setSelectedDevice(device);
       });
     }
 
     return () => {
       if (window.deviceApi) {
-        window.deviceApi.removeAllListeners("device-connected");
-        window.deviceApi.removeAllListeners("device-disconnected");
+        window.deviceApi.removeAllListeners("selected-device-changed");
       }
     };
   }, []);
@@ -76,25 +64,10 @@ export function useStatus(): Status {
     }
   };
 
-  const handleRefreshDevices = async (): Promise<void> => {
-    if (!window.deviceApi) return;
-
-    setIsLoading(true);
-    try {
-      const devices = await window.deviceApi.getDevices();
-      setDevices(devices);
-    } catch (error) {
-      console.error("Failed to refresh devices:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   return {
-    devices,
+    selectedDevice,
     isLoading,
     testingDevice,
     handleTestDevice,
-    handleRefreshDevices,
   };
 }
