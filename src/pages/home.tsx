@@ -1,18 +1,20 @@
 import { Preview } from "@/components/preview";
 import { useCartridge } from "@/hooks/cartridge.hook";
+import { useLauncher } from "@/hooks/launch.hook";
 
 export function HomePage() {
   const { lastCartridge } = useCartridge();
+  const { launchCartridge, isLaunching } = useLauncher();
 
   return (
     <>
       <h1 className="text-2xl font-bold mb-4">Current Cartridge</h1>
-      <p>{lastCartridge?.name}</p>
       <div>
         {lastCartridge ? (
           <Preview
             name={lastCartridge.name}
-            pathName={lastCartridge.pathName}
+            launchCartridge={launchCartridge}
+            isLaunching={isLaunching}
           />
         ) : (
           <div className="text-center p-2 text-muted-foreground">

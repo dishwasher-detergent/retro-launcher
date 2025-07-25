@@ -1,14 +1,22 @@
+import { LucideLoader2, LucidePlay } from "lucide-react";
+
 interface PreviewProps {
   name: string;
-  pathName: string;
   icon?: string | null;
+  launchCartridge?: () => void;
+  isLaunching?: boolean;
 }
 
-export function Preview({ name, icon }: PreviewProps) {
+export function Preview({
+  name,
+  icon,
+  launchCartridge,
+  isLaunching,
+}: PreviewProps) {
   return (
-    <div className="relative w-72">
+    <div className="relative w-72 group cursor-pointer">
       <div className="relative">
-        <div className="relative pt-6 bg-gradient-to-br from-slate-200 via-slate-250 to-slate-300 shadow-2xl rounded-xl border border-slate-300/80 overflow-hidden">
+        <div className="relative pt-6 bg-gradient-to-br from-slate-200 via-slate-250 to-slate-300 shadow-2xl rounded-xl border border-slate-300/80 overflow-hidden group-hover:brightness-75 transition-all duration-300">
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-white/40 to-transparent"></div>
           <div className="absolute bottom-0 left-0 w-6 bg-gradient-to-t from-slate-500/60 to-slate-400/40 shadow-inner rounded-tr-lg h-1/2"></div>
           <div className="absolute bottom-0 right-0 w-6 bg-gradient-to-t from-slate-500/60 to-slate-400/40 shadow-inner rounded-tl-lg h-1/2"></div>
@@ -88,6 +96,19 @@ export function Preview({ name, icon }: PreviewProps) {
             </div>
           </div>
         </div>
+        {launchCartridge && (
+          <button
+            onClick={() => launchCartridge()}
+            disabled={isLaunching}
+            className="absolute inset-0 bg-slate-900/80 rounded-xl flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-20"
+          >
+            {isLaunching ? (
+              <LucideLoader2 className={`size-10 animate-spin}`} />
+            ) : (
+              <LucidePlay className="size-10" />
+            )}
+          </button>
+        )}
       </div>
     </div>
   );
