@@ -1,5 +1,12 @@
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
+
 import { DeviceInfo } from "@/types/electron";
-import React, { createContext, useContext, useEffect, useState } from "react";
 
 interface LogsContextType {
   logs: string[];
@@ -24,15 +31,15 @@ interface LogsProviderProps {
 export const LogsProvider: React.FC<LogsProviderProps> = ({ children }) => {
   const [logs, setlogs] = useState<string[]>([]);
 
-  const addLogs = (message: string) => {
+  const addLogs = useCallback((message: string) => {
     const timestamp = new Date().toLocaleTimeString();
     const timestampedMessage = `[${timestamp}] ${message}`;
     setlogs((prev) => [timestampedMessage, ...prev]);
-  };
+  }, []);
 
-  const clearLogs = () => {
+  const clearLogs = useCallback(() => {
     setlogs([]);
-  };
+  }, []);
 
   useEffect(() => {
     if (window.deviceApi) {

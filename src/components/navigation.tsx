@@ -1,4 +1,4 @@
-import { FileText, Home, Plus } from "lucide-react";
+import { LucideFileText, LucideHome, LucidePlus } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 
 import { StatusIndicator } from "@/components/status";
@@ -12,17 +12,17 @@ export function Navigation() {
     {
       path: "/",
       label: "Home",
-      icon: Home,
+      icon: LucideHome,
     },
     {
       path: "/writer",
       label: "New Cartridge",
-      icon: Plus,
+      icon: LucidePlus,
     },
     {
       path: "/logs",
       label: "Logs",
-      icon: FileText,
+      icon: LucideFileText,
     },
   ];
 

@@ -1,7 +1,8 @@
-import { Button } from "@/components/ui/button";
-import { useStatus } from "@/hooks/status.hook";
 import { LucideBrushCleaning } from "lucide-react";
-import { useLogsContext } from "../contexts/logs-context";
+
+import { Button } from "@/components/ui/button";
+import { useLogsContext } from "@/contexts/logs-context";
+import { useStatus } from "@/hooks/status.hook";
 
 export function LogsPage() {
   const { selectedDevice } = useStatus();
@@ -39,16 +40,12 @@ export function LogsPage() {
       </div>
       {selectedDevice ? (
         <div className="mt-4">
-          <h2 className="text-lg font-semibold">Connected Devices</h2>
-          <ul className="list-disc pl-5 mt-2">
-            <li
-              key={selectedDevice.path}
-              className="text-sm text-muted-foreground"
-            >
-              {selectedDevice.path} -{" "}
-              {selectedDevice.manufacturer || "Unknown Manufacturer"}
-            </li>
-          </ul>
+          <h2 className="text-lg font-semibold">Connected Device</h2>
+          <p>Product: {selectedDevice.productId}</p>
+          <p>Serial Number: {selectedDevice.serialNumber}</p>
+          <p>Manufacturer: {selectedDevice.manufacturer}</p>
+          <p>Vendor ID: {selectedDevice.vendorId}</p>
+          <p>Path: {selectedDevice.path}</p>
         </div>
       ) : (
         <p className="text-sm text-muted-foreground mt-2">

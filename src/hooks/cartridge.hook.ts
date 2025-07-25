@@ -1,23 +1,23 @@
+import { useLogsContext } from "@/contexts/logs-context";
 import { NFCCardData } from "@/types/electron";
 import { useEffect, useState } from "react";
 
-export interface CartridgeStatus {
+export interface Cartridge {
   lastCartridge: NFCCardData | null;
   isConnected: boolean;
   connectedDevicePath: string | null;
   isLoading: boolean;
-  error: string | null;
   sendCommand: (command: string) => Promise<void>;
 }
 
-export function useCartridge(): CartridgeStatus {
+export function useCartridge(): Cartridge {
+  const { addLogs } = useLogsContext();
   const [lastCartridge, setLastCartridge] = useState<NFCCardData | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [connectedDevicePath, setConnectedDevicePath] = useState<string | null>(
     null
   );
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const initializeCartridgeStatus = async () => {
@@ -38,8 +38,7 @@ export function useCartridge(): CartridgeStatus {
           setIsConnected(hasConnectedDevice);
           setConnectedDevicePath(connectedDevice);
         } catch (error) {
-          console.error("Failed to initialize cartridge status:", error);
-          setError(error instanceof Error ? error.message : "Unknown error");
+          addLogs(`Failed to initialize cartridge status: ${error}`);
         } finally {
           setIsLoading(false);
         }
@@ -49,28 +48,22 @@ export function useCartridge(): CartridgeStatus {
     initializeCartridgeStatus();
 
     if (window.cartridgeApi) {
-      // Listen for cartridge detection events
       window.cartridgeApi.onCartridgeDetected((cartridgeData: string) => {
         setLastCartridge(JSON.parse(atob(cartridgeData)) as NFCCardData);
-        setError(null);
       });
 
-      // Listen for cartridge removal events
       window.cartridgeApi.onCartridgeRemoved(() => {
         setLastCartridge(null);
-        setError(null);
       });
 
-      // Listen for NFC errors
       window.cartridgeApi.onNFCError((errorData: any) => {
-        console.error("NFC Error:", errorData);
-        setError(errorData.error?.message || "NFC error occurred");
+        addLogs(`NFC Error: ${errorData.error?.message || "Unknown error"}`);
       });
 
-      // Listen for connection errors
       window.cartridgeApi.onConnectionError((errorData: any) => {
-        console.error("Connection Error:", errorData);
-        setError(errorData.error?.message || "Connection error occurred");
+        addLogs(
+          `Connection Error: ${errorData.error?.message || "Unknown error"}`
+        );
         setIsConnected(false);
         setConnectedDevicePath(null);
       });
@@ -92,15 +85,14 @@ export function useCartridge(): CartridgeStatus {
     }
 
     try {
-      setError(null);
       const result = await window.cartridgeApi.sendCommand(command);
       if (!result.success) {
         throw new Error(result.error || "Failed to send command");
       }
+
+      addLogs(`Command sent successfully: ${command}`);
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      setError(errorMessage);
+      addLogs(`Failed to send command: ${error}`);
       throw error;
     }
   };
@@ -110,7 +102,6 @@ export function useCartridge(): CartridgeStatus {
     isConnected,
     connectedDevicePath,
     isLoading,
-    error,
     sendCommand,
   };
 }

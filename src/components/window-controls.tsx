@@ -1,4 +1,4 @@
-import { Minus, Square, X } from "lucide-react";
+import { LucideMinus, LucideSquare, LucideX } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "./ui/button";
 
@@ -42,7 +42,7 @@ export function WindowControls() {
         onClick={handleMinimize}
         title="Minimize"
       >
-        <Minus className="size-3" />
+        <LucideMinus className="size-3" />
       </Button>
       <Button
         variant="ghost"
@@ -51,7 +51,7 @@ export function WindowControls() {
         onClick={handleMaximize}
         title={isMaximized ? "Restore" : "Maximize"}
       >
-        <Square className="size-3" />
+        <LucideSquare className="size-3" />
       </Button>
       <Button
         variant="ghost"
@@ -60,7 +60,7 @@ export function WindowControls() {
         onClick={handleClose}
         title="Close"
       >
-        <X className="size-3" />
+        <LucideX className="size-3" />
       </Button>
     </div>
   );

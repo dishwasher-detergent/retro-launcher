@@ -74,6 +74,14 @@ declare global {
       onConnectionError: (callback: (error: any) => void) => void;
       removeAllListeners: (channel: string) => void;
     };
+    launcherAPI: {
+      launchCartridge: (cartridgePath: string) => Promise<{ success: boolean }>;
+      onApplicationLaunched: (
+        callback: (data: ApplicationEvent) => void
+      ) => void;
+      onApplicationLaunchError: (callback: (data: LaunchError) => void) => void;
+      removeAllListeners: (channel: string) => void;
+    };
     windowAPI: {
       minimize: () => Promise<{ success: boolean }>;
       maximize: () => Promise<{ success: boolean }>;

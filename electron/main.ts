@@ -2,6 +2,7 @@ import { app, BrowserWindow, globalShortcut, ipcMain, Menu } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DeviceInfo, DeviceService } from "./services/device.service";
+import { LauncherService } from "./services/launcher.service";
 import { TrayService } from "./services/tray.service";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -10,6 +11,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 let win: BrowserWindow | null;
 let trayService: TrayService;
 let deviceService: DeviceService;
+let launcherService: LauncherService;
 let isQuiting = false;
 
 // The built directory structure
@@ -109,6 +111,7 @@ function initializeServices() {
   trayService.initializeTray(process.env.VITE_PUBLIC || "");
 
   deviceService = new DeviceService();
+  launcherService = new LauncherService();
 
   const initialSelectedDevice = deviceService.getSelectedDevice();
   trayService.updateDeviceStatus(initialSelectedDevice ? 1 : 0);
@@ -159,6 +162,18 @@ function initializeServices() {
   deviceService.on("connectionError", (error: any) => {
     if (win) {
       win.webContents.send("cartridge-connection-error", error);
+    }
+  });
+
+  launcherService.on("applicationLaunched", () => {
+    if (win) {
+      win.webContents.send("application-launched");
+    }
+  });
+
+  launcherService.on("launchError", (data) => {
+    if (win) {
+      win.webContents.send("application-launch-error", data);
     }
   });
 }
@@ -278,6 +293,20 @@ function setupIPCHandlers() {
       return deviceService.getConnectedDevice();
     }
     return null;
+  });
+
+  ipcMain.handle("launch-cartridge", async (_, cartridgePath: string) => {
+    if (deviceService) {
+      try {
+        await launcherService.launchApplication(cartridgePath);
+        return { success: true };
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        return { success: false, error: errorMessage };
+      }
+    }
+    return { success: false, error: "Device service not available" };
   });
 }
 

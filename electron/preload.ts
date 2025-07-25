@@ -36,6 +36,24 @@ contextBridge.exposeInMainWorld("windowAPI", {
   isMaximized: () => ipcRenderer.invoke("window-is-maximized"),
 });
 
+contextBridge.exposeInMainWorld("launcherAPI", {
+  launchCartridge: (cartridgePath: string) =>
+    ipcRenderer.invoke("launch-cartridge", cartridgePath),
+
+  // Event listeners
+  onApplicationLaunched: (callback: () => void) => {
+    ipcRenderer.on("application-launched", (_event) => callback());
+  },
+  onApplicationLaunchError: (callback: (data: string) => void) => {
+    ipcRenderer.on("application-launch-error", (_event, data) =>
+      callback(data)
+    );
+  },
+  removeAllListeners: (channel: string) => {
+    ipcRenderer.removeAllListeners(channel);
+  },
+});
+
 // Expose device detection API
 contextBridge.exposeInMainWorld("deviceApi", {
   testDevice: (devicePath: string) =>
